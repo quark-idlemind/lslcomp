@@ -240,8 +240,7 @@ int yyerror(const char *fmt, ...)
 //#define EMERGENCY_DEBUG_PRINTOUTS
 //#define EMIT_CIL_ASSEMBLER
 
-BOOL lscript_compile(const char* src_filename, const char* dst_filename,
-					 const char* err_filename, BOOL compile_to_mono, const char* class_name, BOOL is_god_like)
+BOOL lscript_compile(const char* src_filename)
 {
 	BOOL			b_parse_ok = FALSE;
 	BOOL			b_dummy = FALSE;
@@ -254,13 +253,18 @@ BOOL lscript_compile(const char* src_filename, const char* dst_filename,
 
 	gErrorToText.init();
 	init_supported_expressions();
-	init_temp_jumps();
 	gAllocationManager = new LLScriptAllocationManager();
 
 	yyin = LLFile::fopen(std::string(src_filename), "r");
-	if (yyin)
+	if (!yyin)
 	{
-		yyout = LLFile::fopen(std::string(err_filename), "w");
+		fprintf(stderr, "ERROR: cannot open '%s'\n", src_filename);
+	}
+	else
+	{
+		// Errors are written to stderr; yyout is only used as a dummy
+		// fp argument to recurse() -- no output file is created.
+		yyout = stderr;
 
 		// Reset the lexer's internal buffering.
 
@@ -270,71 +274,21 @@ BOOL lscript_compile(const char* src_filename, const char* dst_filename,
 
 		if (b_parse_ok)
 		{
-#ifdef EMERGENCY_DEBUG_PRINTOUTS
-			char compiled[256];
-			sprintf(compiled, "%s.pp", src_filename);
-			LLFILE* compfile;
-			compfile = LLFile::fopen(compiled, "w");
-#endif
-
-			if(dst_filename)
-			{
-				gScriptp->setBytecodeDest(dst_filename);
-			}
-
-			gScriptp->mGodLike = is_god_like;
-			
-			gScriptp->setClassName(class_name);
-
 			gScopeStringTable = new LLStringTable(16384);
-#ifdef EMERGENCY_DEBUG_PRINTOUTS
-			gScriptp->recurse(compfile, 0, 4, LSCP_PRETTY_PRINT, LSPRUNE_INVALID, b_dummy, NULL, type, type, b_dummy_count, NULL, NULL, 0, NULL, 0, NULL);
-#endif
 			gScriptp->recurse(yyout, 0, 0, LSCP_PRUNE,		 LSPRUNE_INVALID, b_dummy, NULL, type, type, b_dummy_count, NULL, NULL, 0, NULL, 0, NULL);
 			gScriptp->recurse(yyout, 0, 0, LSCP_SCOPE_PASS1, LSPRUNE_INVALID, b_dummy, NULL, type, type, b_dummy_count, NULL, NULL, 0, NULL, 0, NULL);
 			gScriptp->recurse(yyout, 0, 0, LSCP_SCOPE_PASS2, LSPRUNE_INVALID, b_dummy, NULL, type, type, b_dummy_count, NULL, NULL, 0, NULL, 0, NULL);
 			gScriptp->recurse(yyout, 0, 0, LSCP_TYPE,		 LSPRUNE_INVALID, b_dummy, NULL, type, type, b_dummy_count, NULL, NULL, 0, NULL, 0, NULL);
-			if (!gErrorToText.getErrors())
-			{
-				gScriptp->recurse(yyout, 0, 0, LSCP_RESOURCE, LSPRUNE_INVALID,		 b_dummy, NULL, type, type, b_dummy_count, NULL, NULL, 0, NULL, 0, NULL);
-#ifdef EMERGENCY_DEBUG_PRINTOUTS
-				gScriptp->recurse(yyout, 0, 0, LSCP_EMIT_ASSEMBLY, LSPRUNE_INVALID,  b_dummy, NULL, type, type, b_dummy_count, NULL, NULL, 0, NULL, 0, NULL);
-#endif
-				if(TRUE == compile_to_mono)
-				{
-					gScriptp->recurse(yyout, 0, 0, LSCP_EMIT_CIL_ASSEMBLY, LSPRUNE_INVALID,  b_dummy, NULL, type, type, b_dummy_count, NULL, NULL, 0, NULL, 0, NULL);
-				}
-				else
-				{
-					gScriptp->recurse(yyout, 0, 0, LSCP_EMIT_BYTE_CODE, LSPRUNE_INVALID, b_dummy, NULL, type, type, b_dummy_count, NULL, NULL, 0, NULL, 0, NULL);
-				}
-			}
 			delete gScopeStringTable;
 			gScopeStringTable = NULL;
-#ifdef EMERGENCY_DEBUG_PRINTOUTS
-			fclose(compfile);
-#endif
 		}
-		fclose(yyout);
 		fclose(yyin);
 	}
 
 	delete gAllocationManager;
 	delete gScopeStringTable;
-	
+
 	return b_parse_ok && !gErrorToText.getErrors();
-}
-
-
-BOOL lscript_compile(char *filename, BOOL compile_to_mono, BOOL is_god_like = FALSE)
-{
-	char src_filename[MAX_STRING];
-	sprintf(src_filename, "%s.lsl", filename);
-	char err_filename[MAX_STRING];
-	sprintf(err_filename, "%s.out", filename);
-	char class_name[MAX_STRING];
-	sprintf(class_name, "%s", filename);
-	return lscript_compile(src_filename, NULL, err_filename, compile_to_mono, class_name, is_god_like);
 }
 
 

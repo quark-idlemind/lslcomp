@@ -30,7 +30,6 @@
 #define LL_STRINGIZE_H
 
 #include <sstream>
-#include <boost/lambda/lambda.hpp>
 
 /**
  * stringize(item) encapsulates an idiom we use constantly, using
@@ -65,7 +64,8 @@ std::string stringize_f(Functor const & f)
  * return out.str();
  * @endcode
  */
-#define STRINGIZE(EXPRESSION) (stringize_f(boost::lambda::_1 << EXPRESSION))
+#define STRINGIZE(EXPRESSION) \
+    ([&]() -> std::string { std::ostringstream _ss_; _ss_ << EXPRESSION; return _ss_.str(); }())
 
 
 /**
@@ -101,7 +101,8 @@ void destringize_f(std::string const & str, Functor const & f)
  * in >> item1 >> item2 >> item3 ... ;
  * @endcode
  */
-#define DESTRINGIZE(STR, EXPRESSION) (destringize_f((STR), (boost::lambda::_1 >> EXPRESSION)))
+#define DESTRINGIZE(STR, EXPRESSION) \
+    ([&]() { std::istringstream _ss_(STR); _ss_ >> EXPRESSION; }())
 
 
 #endif /* ! defined(LL_STRINGIZE_H) */

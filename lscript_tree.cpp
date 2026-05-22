@@ -7066,18 +7066,11 @@ void LLScriptStatementSequence::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRI
 		mFirstp->recurse(fp, tabs, tabsize, pass, ptype, prunearg, scope, type, basetype, count, chunk, heap, stacksize, entry, entrycount, NULL);
 		if (prunearg)
 		{
-			// babbage: only warn on first dead code block found.
-			if(ptype != LSPRUNE_DEAD_CODE)
-			{
-				gErrorToText.writeWarning(fp, this, LSWARN_DEAD_CODE);
-			}
-
-			// babbage: set prune type to LSPRUNE_DEAD_CODE to mask other
-			// prune errors.
+			// Dead code beyond a return is silently accepted -- no warning.
+			// Set LSPRUNE_DEAD_CODE to suppress further prune checks inside
+			// the dead block, and reset prunearg so the function-level
+			// NO_RETURN check still works correctly.
 			ptype = LSPRUNE_DEAD_CODE;
-
-			// babbage: reset prunearg, to track whether return needed at
-			// end of dead code path as CIL always needs a return/throw.
 			prunearg = FALSE;
 		}
 		mSecondp->recurse(fp, tabs, tabsize, pass, ptype, prunearg, scope, type, basetype, count, chunk, heap, stacksize, entry, entrycount, NULL);

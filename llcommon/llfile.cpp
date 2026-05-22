@@ -32,6 +32,7 @@
 #include <stdlib.h>                 // Windows errno
 #else
 #include <errno.h>
+#include <unistd.h>                 // rmdir, etc.
 #endif
 
 #include "linden_common.h"
@@ -424,7 +425,7 @@ LLFILE *	LLFile::_Fiopen(const std::string& filename,
 
 
 // *TODO: Seek the underlying c stream for better cross-platform compatibility?
-#if !LL_WINDOWS
+#if !LL_WINDOWS && !defined(__APPLE__)
 llstdio_filebuf::int_type llstdio_filebuf::overflow(llstdio_filebuf::int_type __c)
 {
 	int_type __ret = traits_type::eof();
@@ -849,7 +850,7 @@ int llstdio_filebuf::sync()
 
 
 llifstream::llifstream() : _M_filebuf(),
-#if LL_WINDOWS
+#if LL_WINDOWS || defined(__APPLE__)
 	std::istream(&_M_filebuf) {}
 #else
 	std::istream()
@@ -859,7 +860,7 @@ llifstream::llifstream() : _M_filebuf(),
 #endif
 
 // explicit
-llifstream::llifstream(const std::string& _Filename, 
+llifstream::llifstream(const std::string& _Filename,
 		ios_base::openmode _Mode) : _M_filebuf(),
 #if LL_WINDOWS
 	std::istream(&_M_filebuf)
@@ -873,6 +874,11 @@ llifstream::llifstream(const std::string& _Filename,
 	{
 		_Myios::setstate(ios_base::failbit);
 	}
+}
+#elif defined(__APPLE__)
+	std::istream(&_M_filebuf)
+{
+	this->open(_Filename.c_str(), _Mode | ios_base::in);
 }
 #else
 	std::istream()
@@ -898,6 +904,11 @@ llifstream::llifstream(const char* _Filename,
 		_Myios::setstate(ios_base::failbit);
 	}
 }
+#elif defined(__APPLE__)
+	std::istream(&_M_filebuf)
+{
+	this->open(_Filename, _Mode | ios_base::in);
+}
 #else
 	std::istream()
 {
@@ -911,7 +922,7 @@ llifstream::llifstream(const char* _Filename,
 llifstream::llifstream(_Filet *_File,
 		ios_base::openmode _Mode, size_t _Size) :
 	_M_filebuf(_File, _Mode, _Size),
-#if LL_WINDOWS
+#if LL_WINDOWS || defined(__APPLE__)
 	std::istream(&_M_filebuf) {}
 #else
 	std::istream()
@@ -920,7 +931,7 @@ llifstream::llifstream(_Filet *_File,
 }
 #endif
 
-#if !LL_WINDOWS
+#if !LL_WINDOWS && !defined(__APPLE__)
 // explicit
 llifstream::llifstream(int __fd,
 		ios_base::openmode _Mode, size_t _Size) :
@@ -982,7 +993,7 @@ void llifstream::close()
 
 
 llofstream::llofstream() : _M_filebuf(),
-#if LL_WINDOWS
+#if LL_WINDOWS || defined(__APPLE__)
 	std::ostream(&_M_filebuf) {}
 #else
 	std::ostream()
@@ -1006,6 +1017,11 @@ llofstream::llofstream(const std::string& _Filename,
 	{
 		_Myios::setstate(ios_base::failbit);
 	}
+}
+#elif defined(__APPLE__)
+	std::ostream(&_M_filebuf)
+{
+	this->open(_Filename.c_str(), _Mode | ios_base::out);
 }
 #else
 	std::ostream()
@@ -1031,6 +1047,11 @@ llofstream::llofstream(const char* _Filename,
 		_Myios::setstate(ios_base::failbit);
 	}
 }
+#elif defined(__APPLE__)
+	std::ostream(&_M_filebuf)
+{
+	this->open(_Filename, _Mode | ios_base::out);
+}
 #else
 	std::ostream()
 {
@@ -1043,7 +1064,7 @@ llofstream::llofstream(const char* _Filename,
 llofstream::llofstream(_Filet *_File,
 			ios_base::openmode _Mode, size_t _Size) :
 	_M_filebuf(_File, _Mode, _Size),
-#if LL_WINDOWS
+#if LL_WINDOWS || defined(__APPLE__)
 	std::ostream(&_M_filebuf) {}
 #else
 	std::ostream()
@@ -1052,7 +1073,7 @@ llofstream::llofstream(_Filet *_File,
 }
 #endif
 
-#if !LL_WINDOWS
+#if !LL_WINDOWS && !defined(__APPLE__)
 // explicit
 llofstream::llofstream(int __fd,
 			ios_base::openmode _Mode, size_t _Size) :

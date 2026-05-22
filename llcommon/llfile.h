@@ -45,8 +45,10 @@ typedef FILE LLFILE;
 typedef struct _stat	llstat;
 #else
 typedef struct stat		llstat;
+#if !defined(__APPLE__)
 #include <ext/stdio_filebuf.h>
 #include <bits/postypes.h>
+#endif
 #endif
 
 #ifndef S_ISREG
@@ -96,6 +98,10 @@ namespace
 {
 #if LL_WINDOWS
 typedef std::filebuf						_Myfb;
+#elif defined(__APPLE__)
+// Apple/clang: use standard filebuf; GCC extensions not available.
+typedef std::filebuf						_Myfb;
+typedef FILE								_Filet;
 #else
 typedef  __gnu_cxx::stdio_filebuf< char >	_Myfb;
 typedef std::__c_file						_Filet;
@@ -126,6 +132,8 @@ public:
 		    size_t __size = static_cast<size_t>(1)) :
 #if LL_WINDOWS
 		_Myfb(__f) {}
+#elif defined(__APPLE__)
+		_Myfb() { (void)__f; (void)__mode; (void)__size; }
 #else
 		_Myfb(__f, __mode, __size) {}
 #endif
@@ -152,7 +160,7 @@ public:
 	 *  POSIX file descriptor. The file descriptor will be automatically
 	 *  closed when the stdio_filebuf is closed/destroyed.
 	*/
-#if !LL_WINDOWS
+#if !LL_WINDOWS && !defined(__APPLE__)
 	llstdio_filebuf(int __fd, std::ios_base::openmode __mode,
 		//size_t __size = static_cast<size_t>(BUFSIZ)) :
 		size_t __size = static_cast<size_t>(1)) :
@@ -160,7 +168,7 @@ public:
 #endif
 
 // *TODO: Seek the underlying c stream for better cross-platform compatibility?
-#if !LL_WINDOWS
+#if !LL_WINDOWS && !defined(__APPLE__)
 protected:
 	/** underflow() and uflow() functions are called to get the next
 	 *  character from the real input source when the buffer is empty.
@@ -245,7 +253,7 @@ public:
         @param  Size  Optimal or preferred size of internal buffer, in chars.
                       Defaults to system's @c BUFSIZ.
 	*/
-#if !LL_WINDOWS
+#if !LL_WINDOWS && !defined(__APPLE__)
 	explicit llifstream(int __fd,
 			ios_base::openmode _Mode = ios_base::in,
 			//size_t _Size = static_cast<size_t>(BUFSIZ));
@@ -357,7 +365,7 @@ public:
         @param  Size  Optimal or preferred size of internal buffer, in chars.
                       Defaults to system's @c BUFSIZ.
 	*/
-#if !LL_WINDOWS
+#if !LL_WINDOWS && !defined(__APPLE__)
 	explicit llofstream(int __fd,
 			ios_base::openmode _Mode = ios_base::out,
 			//size_t _Size = static_cast<size_t>(BUFSIZ));

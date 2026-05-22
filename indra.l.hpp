@@ -3,9 +3,9 @@
 
 #include "stdtypes.h"
 
-BOOL lscript_compile(const char* src_filename, const char* dst_filename,
-					 const char* err_filename, BOOL compile_to_mono, const char* class_name, BOOL is_god_like);
-
-BOOL lscript_compile(char *filename, BOOL compile_to_mono, BOOL is_god_like = FALSE);
+// Parse src_filename, run the error-checking passes (PRUNE, SCOPE_PASS1,
+// SCOPE_PASS2, TYPE), write any diagnostics to stderr, and return TRUE if
+// the script is clean (no errors).
+BOOL lscript_compile(const char* src_filename);
 
 #endif

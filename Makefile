@@ -1,5 +1,5 @@
 CXX=g++
-CPPFLAGS=-DLINUX=1 -Illcommon -Ilscript -DEMERGENCY_DEBUG_PRINTOUTS
+CPPFLAGS=-DLINUX=1 -Illcommon -Ilscript
 CFLAGS=-g -O0
 LDFLAGS=
 
