@@ -41,24 +41,27 @@ indra.y.o : indra.y.cpp indra.y.hpp
 llcommon/llfile.o : llcommon/llfile.cpp
 llcommon/llstringtable.o : llcommon/llstringtable.cpp
 
-lslcomp : lslcomp.o indra.l.o indra.y.o\
+COMPILER_OBJS = indra.l.o indra.y.o\
  lscript_library/lscript_library.o\
  lscript_error.o\
  lscript_scope.o lscript_tree.o\
  lscript_typecheck.o\
  llcommon/llfile.o llcommon/llstringtable.o
-	g++ $(CFLAGS) $(LDFLAGS) lslcomp.o indra.l.o indra.y.o\
- lscript_library/lscript_library.o\
- lscript_error.o\
- lscript_scope.o lscript_tree.o\
- lscript_typecheck.o\
- llcommon/llfile.o llcommon/llstringtable.o\
- -o lslcomp
+
+lslcomp : lslcomp.o $(COMPILER_OBJS)
+	g++ $(CFLAGS) $(LDFLAGS) lslcomp.o $(COMPILER_OBJS) -o lslcomp
+
+tests/test_leak.o : tests/test_leak.cpp indra.l.hpp
+	$(CXX) -c $(CFLAGS) $(CPPFLAGS) -I. tests/test_leak.cpp -o tests/test_leak.o
+
+test_leak : tests/test_leak.o $(COMPILER_OBJS)
+	g++ $(CFLAGS) $(LDFLAGS) tests/test_leak.o $(COMPILER_OBJS) -o test_leak
 
 
 clean :
-	rm -f lslcomp *.o lscript_library/*.o llcommon/*.o\
+	rm -f lslcomp test_leak *.o tests/test_leak.o\
+ lscript_library/*.o llcommon/*.o\
  indra.l.cpp indra.l indra.y.cpp indra.y.hpp\
  lscript_library/lscript_library.cpp
 
-.PHONY : all clean
+.PHONY : all clean test_leak
