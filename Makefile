@@ -34,7 +34,7 @@ lscript_library/lscript_library.o : lscript_library/lscript_library.cpp
 lslcomp.o : lslcomp.cpp
 lscript_error.o : lscript_error.cpp
 lscript_scope.o : lscript_scope.cpp
-lscript_tree.o : lscript_tree.cpp llcommon/llstring.h
+lscript_tree.o : lscript_tree.cpp lscript_tree.h llcommon/llstring.h
 lscript_typecheck.o : lscript_typecheck.cpp
 indra.l.o : indra.l.cpp indra.y.hpp
 indra.y.o : indra.y.cpp indra.y.hpp

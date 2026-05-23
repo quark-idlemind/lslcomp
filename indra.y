@@ -22,6 +22,13 @@
 %lex-param   { yyscan_t scanner }
 %parse-param { yyscan_t scanner }
 
+// Free heap-allocated token strings when the parser discards a value
+// during error recovery or stack cleanup on parse failure.  All sval
+// tokens are created with "new char[]" in the lexer rules.
+// Note: bison 2.3 requires listing each symbol by name rather than
+// using the <type> tag form.
+%destructor { delete[] $$; } IDENTIFIER STATE_DEFAULT STRING_CONSTANT
+
 %union
 {
 	S32								ival;
