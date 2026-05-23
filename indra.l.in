@@ -21,7 +21,6 @@ FS			(f|F)
 //#include "llmath.h"
 #include "lscript_tree.h"
 #include "lscript_typecheck.h"
-#include "lscript_resource.h"
 #include "indra.y.hpp"
 //#include "lltimer.h"
 //#include "indra_constants.h"

@@ -1,6 +1,6 @@
 CXX=g++
 CPPFLAGS=-DLINUX=1 -Illcommon -Ilscript
-CFLAGS=-g -O0
+CFLAGS=-g -O0 -Wall -Wextra -Wunused-function
 LDFLAGS=
 
 LSLK=~/apps/secondlife/scripts/lslkeywords/
@@ -33,7 +33,6 @@ indra.y.cpp indra.y.hpp : indra.y
 lscript_library/lscript_library.o : lscript_library/lscript_library.cpp
 lslcomp.o : lslcomp.cpp
 lscript_error.o : lscript_error.cpp
-lscript_resource.o : lscript_resource.cpp
 lscript_scope.o : lscript_scope.cpp
 lscript_tree.o : lscript_tree.cpp llcommon/llstring.h
 lscript_typecheck.o : lscript_typecheck.cpp
@@ -44,13 +43,13 @@ llcommon/llstringtable.o : llcommon/llstringtable.cpp
 
 lslcomp : lslcomp.o indra.l.o indra.y.o\
  lscript_library/lscript_library.o\
- lscript_error.o lscript_resource.o\
+ lscript_error.o\
  lscript_scope.o lscript_tree.o\
  lscript_typecheck.o\
  llcommon/llfile.o llcommon/llstringtable.o
 	g++ $(CFLAGS) $(LDFLAGS) lslcomp.o indra.l.o indra.y.o\
  lscript_library/lscript_library.o\
- lscript_error.o lscript_resource.o\
+ lscript_error.o\
  lscript_scope.o lscript_tree.o\
  lscript_typecheck.o\
  llcommon/llfile.o llcommon/llstringtable.o\
