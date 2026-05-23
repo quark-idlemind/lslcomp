@@ -38,69 +38,6 @@
 //#define LSL_INCLUDE_DEBUG_INFO
 
 
-static void print_cil_box(LLFILE* fp, LSCRIPTType type)
-{
-
-switch(type)
-	{
-	case LST_INTEGER:
-		fprintf(fp, "box [mscorlib]System.Int32\n");
-		break;
-	case LST_FLOATINGPOINT:
-		fprintf(fp, "box [mscorlib]System.Single\n");
-		break;
-	case LST_STRING:
-		// System.String is not a System.ValueType,
-		// so does not need to be boxed.
-		break;
-	case LST_KEY:
-		fprintf(fp, "box [ScriptTypes]LindenLab.SecondLife.Key\n");
-		break;
-	case LST_VECTOR:
-		fprintf(fp, "box [ScriptTypes]LindenLab.SecondLife.Vector\n");
-		break;
-	case LST_QUATERNION:
-		fprintf(fp, "box [ScriptTypes]LindenLab.SecondLife.Quaternion\n");
-		break;
-	default:
-		//llassert(false);
-		break;
-	}
-}
-
-static void print_cil_type(LLFILE* fp, LSCRIPTType type)
-{
-	switch(type)
-	{
-	case LST_INTEGER:
-		fprintf(fp, "int32");
-		break;
-	case LST_FLOATINGPOINT:
-		fprintf(fp, "float32");
-		break;
-	case LST_STRING:
-		fprintf(fp, "string");
-		break;
-	case LST_KEY:
-		fprintf(fp, "valuetype [ScriptTypes]LindenLab.SecondLife.Key");
-		break;
-	case LST_VECTOR:
-		fprintf(fp, "class [ScriptTypes]LindenLab.SecondLife.Vector");
-		break;
-	case LST_QUATERNION:
-		fprintf(fp, "class [ScriptTypes]LindenLab.SecondLife.Quaternion");
-		break;
-	case LST_LIST:
-		fprintf(fp, "class [mscorlib]System.Collections.ArrayList");
-		break;
-	case LST_NULL:
-		fprintf(fp, "void");
-		break;
-	default:
-		break;
-	}
-}
-
 void LLScriptType::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePass pass, LSCRIPTPruneType ptype, BOOL &prunearg, LLScriptScope *scope, LSCRIPTType &type, LSCRIPTType basetype, U64 &count, LLScriptByteCodeChunk *chunk, LLScriptByteCodeChunk *heap, S32 stacksize, LLScriptScopeEntry *entry, S32 entrycount, LLScriptLibData **ldata)
 {
 	if (gErrorToText.getErrors())
@@ -185,38 +122,6 @@ S32 LLScriptConstantFloat::getSize()
 	return LSCRIPTDataSize[LST_FLOATINGPOINT];
 }
 
-void print_escaped(LLFILE* fp, const char* str)
-{
-  putc('"', fp);
-  for(const char* c = str; *c != '\0'; ++c)
-  {
-	  switch(*c)
-	  {
-	  case '"':
-		putc('\\', fp);
-		putc(*c, fp);
-		break;
-	  case '\n':
-		putc('\\', fp);
-		putc('n', fp);
-		break;
-	  case '\t':
-		putc(' ', fp);
-		putc(' ', fp);
-		putc(' ', fp);
-		putc(' ', fp);
-		break;
-	  case '\\':
-		putc('\\', fp);
-		putc('\\', fp);
-		break;
-	  default:
-		putc(*c, fp);
-	  }
-  }
-  putc('"', fp);
-}
-
 void LLScriptConstantString::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePass pass, LSCRIPTPruneType ptype, BOOL &prunearg, LLScriptScope *scope, LSCRIPTType &type, LSCRIPTType basetype, U64 &count, LLScriptByteCodeChunk *chunk, LLScriptByteCodeChunk *heap, S32 stacksize, LLScriptScopeEntry *entry, S32 entrycount, LLScriptLibData **ldata)
 {
 	if (gErrorToText.getErrors())
@@ -290,12 +195,6 @@ S32 LLScriptSimpleAssignable::getSize()
 	return 0;
 }
 
-static void print_cil_member(LLFILE* fp, LLScriptIdentifier *ident)
-{
-	print_cil_type(fp, ident->mScopeEntry->mType);
-	fprintf(fp, " %s::'%s'\n", gScriptp->getClassName(), ident->mScopeEntry->mIdentifier);
-}
-
 void LLScriptSAIdentifier::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePass pass, LSCRIPTPruneType ptype, BOOL &prunearg, LLScriptScope *scope, LSCRIPTType &type, LSCRIPTType basetype, U64 &count, LLScriptByteCodeChunk *chunk, LLScriptByteCodeChunk *heap, S32 stacksize, LLScriptScopeEntry *entry, S32 entrycount, LLScriptLibData **ldata)
 {
 	if (gErrorToText.getErrors())
@@ -362,187 +261,7 @@ S32 LLScriptSAConstant::getSize()
 }
 
 
-static void print_cil_cast(LLFILE* fp, LSCRIPTType srcType, LSCRIPTType targetType)
-{
-	switch(srcType)
-	{
-	case LST_INTEGER:
-		switch(targetType)
-		{
-		case LST_FLOATINGPOINT:
-			fprintf(fp, "conv.r8\n");
-			break;
-		case LST_STRING:
-			fprintf(fp, "call string class [mscorlib]System.Convert::ToString(int32)\n");
-			break;
-		case LST_LIST:
-			print_cil_box(fp, LST_INTEGER);
-			fprintf(fp, "call class [mscorlib]System.Collections.ArrayList class [LslUserScript]LindenLab.SecondLife.LslUserScript::CreateList(object)\n");
-			break;
-		default:
-			break;
-		}
-		break;
-	case LST_FLOATINGPOINT:
-		switch(targetType)
-		{
-		case LST_INTEGER:
-			fprintf(fp, "call int32 [LslLibrary]LindenLab.SecondLife.LslRunTime::ToInteger(float32)\n");
-			break;
-		case LST_STRING:
-			fprintf(fp, "call string [LslLibrary]LindenLab.SecondLife.LslRunTime::ToString(float32)\n");
-			break;
-		case LST_LIST:
-			print_cil_box(fp, LST_FLOATINGPOINT);
-			fprintf(fp, "call class [mscorlib]System.Collections.ArrayList class [LslUserScript]LindenLab.SecondLife.LslUserScript::CreateList(object)\n");
-			break;
-		default:
-			break;
-		}
-		break;
-	case LST_STRING:
-		switch(targetType)
-		{
-		case LST_INTEGER:
-			fprintf(fp, "call int32 [LslLibrary]LindenLab.SecondLife.LslRunTime::StringToInt(string)\n");
-			break;
-		case LST_FLOATINGPOINT:
-			fprintf(fp, "call float32 [LslLibrary]LindenLab.SecondLife.LslRunTime::StringToFloat(string)\n");
-			break;
-		case LST_KEY:
-			fprintf(fp, "call valuetype [ScriptTypes]LindenLab.SecondLife.Key class [LslUserScript]LindenLab.SecondLife.LslUserScript::'CreateKey'(string)\n");
-			break;
-		case LST_LIST:
-			fprintf(fp, "call class [mscorlib]System.Collections.ArrayList class [LslUserScript]LindenLab.SecondLife.LslUserScript::CreateList(object)\n");
-			break;
-		case LST_VECTOR:
-			fprintf(fp, "call class [ScriptTypes]LindenLab.SecondLife.Vector class [LslUserScript]LindenLab.SecondLife.LslUserScript::'ParseVector'(string)\n");
-			break;
-		case LST_QUATERNION:
-			fprintf(fp, "call class [ScriptTypes]LindenLab.SecondLife.Quaternion class [LslUserScript]LindenLab.SecondLife.LslUserScript::'ParseQuaternion'(string)\n");
-			break;
-		default:
-			break;
-		}
-		break;
-	case LST_KEY:
-		switch(targetType)
-		{
-		case LST_KEY:
-			break;
-		case LST_STRING:
-			fprintf(fp, "call string [LslUserScript]LindenLab.SecondLife.LslUserScript::'ToString'(valuetype [ScriptTypes]LindenLab.SecondLife.Key)\n");
-			break;
-		case LST_LIST:
-			print_cil_box(fp, LST_KEY);
-			fprintf(fp, "call class [mscorlib]System.Collections.ArrayList class [LslUserScript]LindenLab.SecondLife.LslUserScript::CreateList(object)\n");
-			break;
-		default:
-			break;
-		}
-		break;
-	case LST_VECTOR:
-		switch(targetType)
-		{
-		case LST_VECTOR:
-			break;
-		case LST_STRING:
-			fprintf(fp, "call string [LslUserScript]LindenLab.SecondLife.LslUserScript::'ToString'(valuetype [ScriptTypes]LindenLab.SecondLife.Vector)\n");
-			break;
-		case LST_LIST:
-			print_cil_box(fp, LST_VECTOR);
-			fprintf(fp, "call class [mscorlib]System.Collections.ArrayList class [LslUserScript]LindenLab.SecondLife.LslUserScript::CreateList(object)\n");
-			break;
-		default:
-			break;
-		}
-		break;
-	case LST_QUATERNION:
-		switch(targetType)
-		{
-		case LST_QUATERNION:
-			break;
-		case LST_STRING:
-			fprintf(fp, "call string [LslUserScript]LindenLab.SecondLife.LslUserScript::'ToString'(valuetype [ScriptTypes]LindenLab.SecondLife.Quaternion)\n");
-			break;
-		case LST_LIST:
-			print_cil_box(fp, LST_QUATERNION);
-			fprintf(fp, "call class [mscorlib]System.Collections.ArrayList class [LslUserScript]LindenLab.SecondLife.LslUserScript::CreateList(object)\n");
-			break;
-		default:
-			break;
-		}
-		break;
-	case LST_LIST:
-		switch(targetType)
-		{
-		case LST_LIST:
-			break;
-		case LST_STRING:
-			fprintf(fp, "call string [LslLibrary]LindenLab.SecondLife.LslRunTime::ListToString(class [mscorlib]System.Collections.ArrayList)\n");
-			break;
-		default:
-			break;
-		}
-		break;
-	default:
-		break;
-	}
-}
-
-static void print_cil_numeric_cast(LLFILE* fp, LSCRIPTType currentArg, LSCRIPTType otherArg)
-{
-	if((currentArg == LST_INTEGER) && ((otherArg == LST_FLOATINGPOINT) || (otherArg == LST_VECTOR)))
-	{
-		print_cil_cast(fp, LST_INTEGER, LST_FLOATINGPOINT);
-	}
-}
-
-static void print_cil_assignment_cast(LLFILE* fp, LSCRIPTType src,
-									  LSCRIPTType dest)
-{
-	if (LST_STRING == src && LST_KEY == dest)
-	{
-		print_cil_cast(fp, src, dest);
-	}
-	else if(LST_KEY == src && LST_STRING == dest)
-	{
-		print_cil_cast(fp, src, dest);
-	}
-	else
-	{
-		print_cil_numeric_cast(fp, src, dest);
-	}
-}
-
 // HACK! Babbage: should be converted to virtual on LSCRIPTSimpleAssignableType to avoid downcasts.
-LSCRIPTType get_type(LLScriptSimpleAssignable* sa)
-{
-	LSCRIPTType result = LST_NULL;
-	switch(sa->mType)
-	{
-	case LSSAT_IDENTIFIER:
-		result = ((LLScriptSAIdentifier*) sa)->mIdentifier->mScopeEntry->mType;
-		break;
-	case LSSAT_CONSTANT:
-		result = ((LLScriptSAConstant*) sa)->mConstant->mType;
-		break;
-	case LSSAT_VECTOR_CONSTANT:
-		result = LST_VECTOR;
-		break;
-	case LSSAT_QUATERNION_CONSTANT:
-		result = LST_QUATERNION;
-		break;
-	case LSSAT_LIST_CONSTANT:
-		result = LST_LIST;
-		break;
-	default:
-		result = LST_UNDEFINED;
-		break;
-	}
-	return result;
-}
-
 void LLScriptSAVector::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePass pass, LSCRIPTPruneType ptype, BOOL &prunearg, LLScriptScope *scope, LSCRIPTType &type, LSCRIPTType basetype, U64 &count, LLScriptByteCodeChunk *chunk, LLScriptByteCodeChunk *heap, S32 stacksize, LLScriptScopeEntry *entry, S32 entrycount, LLScriptLibData **ldata)
 {
 	if (gErrorToText.getErrors())
@@ -701,44 +420,6 @@ void LLScriptGlobalVariable::gonext(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCo
 }
 
 // Push initialised variable of type on to stack.
-static void print_cil_init_variable(LLFILE* fp, LSCRIPTType type)
-{
-	switch(type)
-	{
-	case LST_INTEGER:
-		fprintf(fp, "ldc.i4.0\n");
-		break;
-	case LST_FLOATINGPOINT:
-		fprintf(fp, "ldc.r8 0\n");
-		break;
-	case LST_STRING:
-		fprintf(fp, "ldstr \"\"\n");
-		break;
-	case LST_KEY:
-		fprintf(fp, "ldstr \"\"\n");
-		fprintf(fp, "call valuetype [ScriptTypes]LindenLab.SecondLife.Key class [LslUserScript]LindenLab.SecondLife.LslUserScript::'CreateKey'(string)\n");
-		break;
-	case LST_VECTOR:
-		fprintf(fp, "ldc.r8 0\n");
-		fprintf(fp, "ldc.r8 0\n");
-		fprintf(fp, "ldc.r8 0\n");
-		fprintf(fp, "call class [ScriptTypes]LindenLab.SecondLife.Vector class [LslUserScript]LindenLab.SecondLife.LslUserScript::'CreateVector'(float32, float32, float32)\n");
-		break;
-	case LST_QUATERNION:
-		fprintf(fp, "ldc.r8 0\n");
-		fprintf(fp, "ldc.r8 0\n");
-		fprintf(fp, "ldc.r8 0\n");
-		fprintf(fp, "ldc.r8 1\n");
-		fprintf(fp, "call class [ScriptTypes]LindenLab.SecondLife.Quaternion class [LslUserScript]LindenLab.SecondLife.LslUserScript::'CreateQuaternion'(float32, float32, float32, float32)\n");
-		break;
-	case LST_LIST:
-		fprintf(fp, "call class [mscorlib]System.Collections.ArrayList class [LslUserScript]LindenLab.SecondLife.LslUserScript::CreateList()\n");
-		break;
-	default:
-		break;
-	}
-}
-
 void LLScriptGlobalVariable::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePass pass, LSCRIPTPruneType ptype, BOOL &prunearg, LLScriptScope *scope, LSCRIPTType &type, LSCRIPTType basetype, U64 &count, LLScriptByteCodeChunk *chunk, LLScriptByteCodeChunk *heap, S32 stacksize, LLScriptScopeEntry *entry, S32 entrycount, LLScriptLibData **ldata)
 {
 	if (gErrorToText.getErrors())
@@ -2317,23 +1998,6 @@ S32 LLScriptForExpressionList::getSize()
 
 // CIL code generation requires both caller and callee scope entries, so cannot use normal recurse signature.
 // TODO: Refactor general purpose recurse calls in to pass specific virtuals using visitor pattern to select method by pass and node type.
-static void print_cil_func_expression_list(LLScriptFuncExpressionList* self, LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePass pass, LSCRIPTPruneType ptype, BOOL &prunearg, LLScriptScope *scope, LSCRIPTType &type, LSCRIPTType basetype, U64 &count, LLScriptByteCodeChunk *chunk, LLScriptByteCodeChunk *heap, S32 stacksize, LLScriptScopeEntry *entry, S32 entrycount, LLScriptLibData **ldata, LLScriptScopeEntry *callee_entry)
-{
-	self->mFirstp->recurse(fp, tabs, tabsize, pass, ptype, prunearg, scope, type, basetype, count, chunk, heap, stacksize, entry, entrycount, NULL);
-	LSCRIPTType argtype = callee_entry->mFunctionArgs.getType(entrycount);
-	if (argtype != self->mFirstp->mReturnType)
-	{
-		print_cil_cast(fp, self->mFirstp->mReturnType, argtype);
-	}
-	entrycount++;
-	if (self->mSecondp)
-	{
-		llassert(LET_FUNC_EXPRESSION_LIST == self->mSecondp->mType);
-		print_cil_func_expression_list((LLScriptFuncExpressionList*) self->mSecondp, fp, tabs, tabsize, pass, ptype, prunearg, scope, type, basetype, count, chunk, heap, stacksize, entry, entrycount, NULL, callee_entry);
-
-	}
-}
-
 void LLScriptFuncExpressionList::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePass pass, LSCRIPTPruneType ptype, BOOL &prunearg, LLScriptScope *scope, LSCRIPTType &type, LSCRIPTType basetype, U64 &count, LLScriptByteCodeChunk *chunk, LLScriptByteCodeChunk *heap, S32 stacksize, LLScriptScopeEntry *entry, S32 entrycount, LLScriptLibData **ldata)
 {
 	if (gErrorToText.getErrors())
@@ -2412,68 +2076,7 @@ S32 LLScriptListExpressionList::getSize()
 }
 
 // Returns true if identifier is a parameter and false if identifier is a local variable within function_scope.
-bool is_parameter(LLScriptIdentifier* identifier, LLScriptScopeEntry* function_scope)
-{
-	// Function stores offset of first local.
-	if(0 == function_scope->mOffset)
-	{
-		// Function offset 0 -> no parameters -> identifier is a local.
-		return false;
-	}
-	else
-	{
-		// Compare variable offset with function offset to
-		// determine whether variable is local or parameter.
-		return (identifier->mScopeEntry->mOffset < function_scope->mOffset);
-	}
-}
-
 // If assignment is to global variable, pushes this pointer on to stack.
-static void print_cil_load_address(LLFILE* fp, LLScriptExpression* exp, LLScriptScopeEntry* function_scope)
-{
-	LLScriptLValue *lvalue = (LLScriptLValue *) exp;
-	LLScriptIdentifier *ident = lvalue->mIdentifier;
-
-	// If global (member), load this pointer.
-	if(ident->mScopeEntry->mIDType == LIT_GLOBAL)
-	{
-		fprintf(fp, "ldarg.0\n");
-	}
-
-	// If accessor, load value type address, consumed by ldfld.
-	if(lvalue->mAccessor)
-	{
-		if(ident->mScopeEntry->mIDType == LIT_VARIABLE)
-		{
-			if(is_parameter(ident, function_scope))
-			{
-				// Parameter, load by name.
-				fprintf(fp, "ldarga.s '%s'\n", ident->mScopeEntry->mIdentifier);
-			}
-			else
-			{
-				// Local, load by index.
-				fprintf(fp, "ldloca.s %d\n", ident->mScopeEntry->mCount);
-			}
-		}
-		else if (ident->mScopeEntry->mIDType == LIT_GLOBAL)
-		{
-			fprintf(fp, "ldflda ");
-			print_cil_member(fp, ident);
-		}
-	}
-}
-
-static void print_cil_accessor(LLFILE* fp, LLScriptLValue *lvalue)
-
-{
-	LLScriptIdentifier *ident = lvalue->mIdentifier;
-	print_cil_type(fp, lvalue->mReturnType);
-	fprintf(fp, " ");
-	print_cil_type(fp, ident->mScopeEntry->mType);
-	fprintf(fp, "::%s\n", lvalue->mAccessor->mName);
-}
-
 void LLScriptLValue::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePass pass, LSCRIPTPruneType ptype, BOOL &prunearg, LLScriptScope *scope, LSCRIPTType &type, LSCRIPTType basetype, U64 &count, LLScriptByteCodeChunk *chunk, LLScriptByteCodeChunk *heap, S32 stacksize, LLScriptScopeEntry *entry, S32 entrycount, LLScriptLibData **ldata)
 {
 	if (gErrorToText.getErrors())
@@ -2622,93 +2225,6 @@ S32 LLScriptLValue::getSize()
 	return 0;
 }
 
-static void print_assignment(LLFILE *fp, LLScriptExpression *exp)
-{
-	LLScriptLValue *lvalue = (LLScriptLValue *)exp;
-	LLScriptIdentifier *ident = lvalue->mIdentifier;
-	if (lvalue->mAccessor)
-	{
-		if (ident->mScopeEntry->mIDType == LIT_VARIABLE)
-		{
-			fprintf(fp, "%s%d [%s.%s]\n", LSCRIPTTypeLocalStore[ident->mScopeEntry->mType], ident->mScopeEntry->mOffset + lvalue->mOffset, ident->mName, lvalue->mAccessor->mName);
-		}
-		else if (ident->mScopeEntry->mIDType == LIT_GLOBAL)
-		{
-			fprintf(fp, "%s%d [%s.%s]\n", LSCRIPTTypeGlobalStore[ident->mScopeEntry->mType], ident->mScopeEntry->mOffset + lvalue->mOffset, ident->mName, lvalue->mAccessor->mName);
-		}
-	}
-	else
-	{
-		if (ident->mScopeEntry->mIDType == LIT_VARIABLE)
-		{
-			fprintf(fp, "%s%d [%s]\n", LSCRIPTTypeLocalStore[ident->mScopeEntry->mType], ident->mScopeEntry->mOffset, ident->mName);
-		}
-		else if (ident->mScopeEntry->mIDType == LIT_GLOBAL)
-		{
-			fprintf(fp, "%s%d [%s]\n", LSCRIPTTypeGlobalStore[ident->mScopeEntry->mType], ident->mScopeEntry->mOffset, ident->mName);
-		}
-	}
-}
-
-static void print_cil_assignment(LLFILE *fp, LLScriptExpression *exp, LLScriptScopeEntry* function_scope)
-{
-	LLScriptLValue *lvalue = (LLScriptLValue *) exp;
-	LLScriptIdentifier *ident = lvalue->mIdentifier;
-	if (lvalue->mAccessor)
-	{
-		// Object address loaded, store in to field.
-		fprintf(fp, "stfld ");
-		print_cil_accessor(fp, lvalue);
-
-		// Load object address.
-		print_cil_load_address(fp, exp, function_scope);
-
-		// Load field.
-		fprintf(fp, "ldfld ");
-		print_cil_accessor(fp, lvalue);
-	}
-	else
-	{
-		if (ident->mScopeEntry->mIDType == LIT_VARIABLE)
-		{
-			// Language semantics require value of assignment to be left on stack.
-			// TODO: Optimise away redundant dup/pop pairs.
-			fprintf(fp, "dup\n");
-			if(is_parameter(ident, function_scope))
-			{
-				// Parameter, store by name.
-				fprintf(fp, "starg.s '%s'\n", ident->mScopeEntry->mIdentifier);
-			}
-			else
-			{
-				// Local, store by index.
-				fprintf(fp, "stloc%s%d\n", (ident->mScopeEntry->mCount > 3 ? ".s " : "."), ident->mScopeEntry->mCount);
-			}
-		}
-		else if (ident->mScopeEntry->mIDType == LIT_GLOBAL)
-		{
-			// Object address loaded, store in to field.
-			fprintf(fp, "stfld ");
-			print_cil_member(fp, ident);
-
-			// Load object address.
-			print_cil_load_address(fp, exp, function_scope);
-
-			// Load field.
-			fprintf(fp, "ldfld ");
-			print_cil_member(fp, ident);
-		}
-	}
-}
-
-void print_cast(LLFILE *fp, LSCRIPTType ret_type, LSCRIPTType right_type)
-{
-	if (right_type != ret_type)
-	{
-		fprintf(fp, "CAST %s->%s\n", LSCRIPTTypeNames[right_type], LSCRIPTTypeNames[ret_type]);
-	}
-}
-
 void LLScriptAssignment::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePass pass, LSCRIPTPruneType ptype, BOOL &prunearg, LLScriptScope *scope, LSCRIPTType &type, LSCRIPTType basetype, U64 &count, LLScriptByteCodeChunk *chunk, LLScriptByteCodeChunk *heap, S32 stacksize, LLScriptScopeEntry *entry, S32 entrycount, LLScriptLibData **ldata)
 {
 	if (gErrorToText.getErrors())
@@ -2741,77 +2257,6 @@ void LLScriptAssignment::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompi
 S32 LLScriptAssignment::getSize()
 {
 	return 0;
-}
-
-static void print_cil_add(LLFILE* fp, LSCRIPTType left_type, LSCRIPTType right_type)
-{
-	if(LST_LIST == right_type && LST_LIST != left_type)
-	{
-		print_cil_box(fp, left_type);
-		fprintf(fp, "call class [mscorlib]System.Collections.ArrayList class [LslUserScript]LindenLab.SecondLife.LslUserScript::Prepend(class [mscorlib]System.Collections.ArrayList, object)\n");
-		return;
-	}
-
-	switch(left_type)
-	{
-	case LST_INTEGER:
-	case LST_FLOATINGPOINT:
-
-		// Numeric addition.
-		fprintf(fp, "add\n");
-		break;
-
-	case LST_STRING:
-	case LST_KEY:
-
-		// String concatenation.
-		fprintf(fp, "call string valuetype [LslUserScript]LindenLab.SecondLife.LslUserScript::Add(string, string)\n");
-		break;
-
-	case LST_VECTOR:
-
-		// Vector addition.
-		fprintf(fp, "call class [ScriptTypes]LindenLab.SecondLife.Vector class [LslUserScript]LindenLab.SecondLife.LslUserScript::'Add'(class [ScriptTypes]LindenLab.SecondLife.Vector, class [ScriptTypes]LindenLab.SecondLife.Vector)\n");
-		break;
-
-	case LST_QUATERNION:
-
-		// Rotation addition.
-		fprintf(fp, "call class [ScriptTypes]LindenLab.SecondLife.Quaternion class [LslUserScript]LindenLab.SecondLife.LslUserScript::'Add'(class [ScriptTypes]LindenLab.SecondLife.Quaternion, class [ScriptTypes]LindenLab.SecondLife.Quaternion)\n");
-		break;
-
-	case LST_LIST:
-		switch(right_type)
-		{
-		case LST_LIST:
-			// Concatenate lists.
-			fprintf(fp, "call class [mscorlib]System.Collections.ArrayList class [LslUserScript]LindenLab.SecondLife.LslUserScript::Append(class [mscorlib]System.Collections.ArrayList, class [mscorlib]System.Collections.ArrayList)\n");
-			break;
-		case LST_INTEGER:
-			fprintf(fp, "call class [mscorlib]System.Collections.ArrayList class [LslUserScript]LindenLab.SecondLife.LslUserScript::Append(int32, class [mscorlib]System.Collections.ArrayList)\n");
-			break;
-		case LST_FLOATINGPOINT:
-			fprintf(fp, "call class [mscorlib]System.Collections.ArrayList class [LslUserScript]LindenLab.SecondLife.LslUserScript::Append(float32, class [mscorlib]System.Collections.ArrayList)\n");
-			break;
-		case LST_STRING:
-			fprintf(fp, "call class [mscorlib]System.Collections.ArrayList class [LslUserScript]LindenLab.SecondLife.LslUserScript::Append(string, class [mscorlib]System.Collections.ArrayList)\n");
-			break;
-		case LST_KEY:
-			fprintf(fp, "call class [mscorlib]System.Collections.ArrayList class [LslUserScript]LindenLab.SecondLife.LslUserScript::Append(valuetype [ScriptTypes]LindenLab.SecondLife.Key, class [mscorlib]System.Collections.ArrayList)\n");
-			break;
-		case LST_VECTOR:
-			fprintf(fp, "call class [mscorlib]System.Collections.ArrayList class [LslUserScript]LindenLab.SecondLife.LslUserScript::Append(valuetype [ScriptTypes]LindenLab.SecondLife.Vector, class [mscorlib]System.Collections.ArrayList)\n");
-			break;
-		case LST_QUATERNION:
-			fprintf(fp, "call class [mscorlib]System.Collections.ArrayList class [LslUserScript]LindenLab.SecondLife.LslUserScript::Append(valuetype [ScriptTypes]LindenLab.SecondLife.Quaternion, class [mscorlib]System.Collections.ArrayList)\n");
-			break;
-		default:
-			break;
-		}
-
-	default:
-		break;
-	}
 }
 
 void LLScriptAddAssignment::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePass pass, LSCRIPTPruneType ptype, BOOL &prunearg, LLScriptScope *scope, LSCRIPTType &type, LSCRIPTType basetype, U64 &count, LLScriptByteCodeChunk *chunk, LLScriptByteCodeChunk *heap, S32 stacksize, LLScriptScopeEntry *entry, S32 entrycount, LLScriptLibData **ldata)
@@ -2848,39 +2293,6 @@ S32 LLScriptAddAssignment::getSize()
 	return 0;
 }
 
-static void print_cil_sub(LLFILE* fp, LSCRIPTType left_type, LSCRIPTType right_type)
-{
-	switch(left_type)
-	{
-	case LST_INTEGER:
-		if(LST_INTEGER == right_type)
-		{
-			fprintf(fp, "call int32 [LslUserScript]LindenLab.SecondLife.LslUserScript::Subtract(int32, int32)\n");
-			break;
-		}
-	case LST_FLOATINGPOINT:
-		// Numeric subtraction.
-		fprintf(fp, "call float64 [LslUserScript]LindenLab.SecondLife.LslUserScript::Subtract(float64, float64)\n");
-		break;
-	case LST_VECTOR:
-
-		// Vector subtraction.
-		fprintf(fp, "call class [ScriptTypes]LindenLab.SecondLife.Vector class [LslUserScript]LindenLab.SecondLife.LslUserScript::'Subtract'(class [ScriptTypes]LindenLab.SecondLife.Vector, class [ScriptTypes]LindenLab.SecondLife.Vector)\n");
-		break;
-
-	case LST_QUATERNION:
-
-		// Rotation subtraction.
-		fprintf(fp, "call class [ScriptTypes]LindenLab.SecondLife.Quaternion class [LslUserScript]LindenLab.SecondLife.LslUserScript::'Subtract'(class [ScriptTypes]LindenLab.SecondLife.Quaternion, class [ScriptTypes]LindenLab.SecondLife.Quaternion)\n");
-		break;
-
-	default:
-
-		// Error.
-		break;
-	}
-}
-
 void LLScriptSubAssignment::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePass pass, LSCRIPTPruneType ptype, BOOL &prunearg, LLScriptScope *scope, LSCRIPTType &type, LSCRIPTType basetype, U64 &count, LLScriptByteCodeChunk *chunk, LLScriptByteCodeChunk *heap, S32 stacksize, LLScriptScopeEntry *entry, S32 entrycount, LLScriptLibData **ldata)
 {
 	if (gErrorToText.getErrors())
@@ -2913,113 +2325,6 @@ void LLScriptSubAssignment::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCo
 S32 LLScriptSubAssignment::getSize()
 {
 	return 0;
-}
-
-static void print_cil_neg(LLFILE* fp, LSCRIPTType type)
-{
-        switch(type)
-	{
-	case LST_INTEGER:
-	case LST_FLOATINGPOINT:
-	  fprintf(fp, "neg\n");
-	  break;
-	case LST_VECTOR:
-	  fprintf(fp, "call class [ScriptTypes]LindenLab.SecondLife.Vector class [LslUserScript]LindenLab.SecondLife.LslUserScript::'Negate'(class [ScriptTypes]LindenLab.SecondLife.Vector)\n");
-	  break;
-	case LST_QUATERNION:
-	  fprintf(fp, "call class [ScriptTypes]LindenLab.SecondLife.Quaternion class [LslUserScript]LindenLab.SecondLife.LslUserScript::'Negate'(class [ScriptTypes]LindenLab.SecondLife.Quaternion)\n");
-	  break;
-	default:
-	  break;
-	}
-}
-
-static void print_cil_mul(LLFILE* fp, LSCRIPTType left_type, LSCRIPTType right_type)
-{
-	switch(left_type)
-	{
-	case LST_INTEGER:
-
-		switch(right_type)
-		{
-		case LST_INTEGER:
-		case LST_FLOATINGPOINT:
-
-			// Numeric multiplication.
-			fprintf(fp, "mul\n");
-			break;
-
-		case LST_VECTOR:
-
-			// Vector scaling.
-			fprintf(fp, "call class [ScriptTypes]LindenLab.SecondLife.Vector class [LslUserScript]LindenLab.SecondLife.LslUserScript::'Multiply'(class [ScriptTypes]LindenLab.SecondLife.Vector, float32)\n");
-			break;
-		default:
-			break;
-		}
-		break;
-
-	case LST_FLOATINGPOINT:
-
-		switch(right_type)
-		{
-		case LST_INTEGER:
-		case LST_FLOATINGPOINT:
-
-			// Numeric multiplication.
-			fprintf(fp, "mul\n");
-			break;
-
-		case LST_VECTOR:
-
-			// Vector scaling.
-			fprintf(fp, "call class [ScriptTypes]LindenLab.SecondLife.Vector class [LslUserScript]LindenLab.SecondLife.LslUserScript::'Multiply'(class [ScriptTypes]LindenLab.SecondLife.Vector, float32)\n");
-			break;
-
-		default:
-			break;
-		}
-		break;
-
-	case LST_VECTOR:
-
-		switch(right_type)
-		{
-		case LST_INTEGER:
-		case LST_FLOATINGPOINT:
-
-			// Vector scaling.
-			fprintf(fp, "call class [ScriptTypes]LindenLab.SecondLife.Vector class [LslUserScript]LindenLab.SecondLife.LslUserScript::'Multiply'(float32, class [ScriptTypes]LindenLab.SecondLife.Vector)\n");
-			break;
-
-		case LST_VECTOR:
-
-			// Dot product.
-			fprintf(fp, "call float32 class [LslUserScript]LindenLab.SecondLife.LslUserScript::'Multiply'(class [ScriptTypes]LindenLab.SecondLife.Vector, class [ScriptTypes]LindenLab.SecondLife.Vector)\n");
-			break;
-
-		case LST_QUATERNION:
-
-			// Vector rotation.
-			fprintf(fp, "call class [ScriptTypes]LindenLab.SecondLife.Vector class [LslUserScript]LindenLab.SecondLife.LslUserScript::'Multiply'(class [ScriptTypes]LindenLab.SecondLife.Quaternion, class [ScriptTypes]LindenLab.SecondLife.Vector)\n");
-			break;
-
-		default:
-			break;
-		}
-		break;
-
-	case LST_QUATERNION:
-
-		// Rotation multiplication.
-		fprintf(fp, "call class [ScriptTypes]LindenLab.SecondLife.Quaternion class [LslUserScript]LindenLab.SecondLife.LslUserScript::'Multiply'(class [ScriptTypes]LindenLab.SecondLife.Quaternion, class [ScriptTypes]LindenLab.SecondLife.Quaternion)\n");
-		break;
-
-	default:
-
-		// Error.
-		break;
-	}
 }
 
 void LLScriptMulAssignment::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePass pass, LSCRIPTPruneType ptype, BOOL &prunearg, LLScriptScope *scope, LSCRIPTType &type, LSCRIPTType basetype, U64 &count, LLScriptByteCodeChunk *chunk, LLScriptByteCodeChunk *heap, S32 stacksize, LLScriptScopeEntry *entry, S32 entrycount, LLScriptLibData **ldata)
@@ -3056,56 +2361,6 @@ S32 LLScriptMulAssignment::getSize()
 	return 0;
 }
 
-static void print_cil_div(LLFILE* fp, LSCRIPTType left_type, LSCRIPTType right_type)
-{
-	switch(left_type)
-	{
-	case LST_INTEGER:
-		if(LST_INTEGER == right_type)
-		{
-			fprintf(fp, "call int32 [LslUserScript]LindenLab.SecondLife.LslUserScript::Divide(int32, int32)\n");
-			break;
-		}
-	case LST_FLOATINGPOINT:
-
-		// Numeric division.
-		fprintf(fp, "call float64 [LslUserScript]LindenLab.SecondLife.LslUserScript::Divide(float64, float64)\n");
-		break;
-
-	case LST_VECTOR:
-
-		switch(right_type)
-		{
-		case LST_INTEGER:
-		case LST_FLOATINGPOINT:
-
-			// Scale.
-			fprintf(fp, "call class [ScriptTypes]LindenLab.SecondLife.Vector class [LslUserScript]LindenLab.SecondLife.LslUserScript::'Divide'(float32, class [ScriptTypes]LindenLab.SecondLife.Vector)\n");
-			break;
-
-		case LST_QUATERNION:
-
-			// Inverse rotation.
-			fprintf(fp, "call class [ScriptTypes]LindenLab.SecondLife.Vector class [LslUserScript]LindenLab.SecondLife.LslUserScript::'Divide'(class [ScriptTypes]LindenLab.SecondLife.Quaternion, class [ScriptTypes]LindenLab.SecondLife.Vector)\n");
-			break;
-
-		default:
-			break;
-		}
-		break;
-
-	case LST_QUATERNION:
-
-		fprintf(fp, "call class [ScriptTypes]LindenLab.SecondLife.Quaternion class [LslUserScript]LindenLab.SecondLife.LslUserScript::'Divide'(class [ScriptTypes]LindenLab.SecondLife.Quaternion, class [ScriptTypes]LindenLab.SecondLife.Quaternion)\n");
-		break;
-
-	default:
-
-		// Error.
-		break;
-	}
-}
-
 void LLScriptDivAssignment::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePass pass, LSCRIPTPruneType ptype, BOOL &prunearg, LLScriptScope *scope, LSCRIPTType &type, LSCRIPTType basetype, U64 &count, LLScriptByteCodeChunk *chunk, LLScriptByteCodeChunk *heap, S32 stacksize, LLScriptScopeEntry *entry, S32 entrycount, LLScriptLibData **ldata)
 {
 	if (gErrorToText.getErrors())
@@ -3140,29 +2395,6 @@ S32 LLScriptDivAssignment::getSize()
 	return 0;
 }
 
-static void print_cil_mod(LLFILE* fp, LSCRIPTType left_type, LSCRIPTType right_type)
-{
-	switch(left_type)
-	{
-	case LST_INTEGER:
-
-		// Numeric remainder.
-		fprintf(fp, "call int32 [LslUserScript]LindenLab.SecondLife.LslUserScript::Modulo(int32, int32)\n");
-		break;
-
-	case LST_VECTOR:
-
-		// Vector cross product.
-		fprintf(fp, "call class [ScriptTypes]LindenLab.SecondLife.Vector class [LslUserScript]LindenLab.SecondLife.LslUserScript::'Modulo'(class [ScriptTypes]LindenLab.SecondLife.Vector, class [ScriptTypes]LindenLab.SecondLife.Vector)\n");
-		break;
-
-	default:
-
-		// Error.
-		break;
-	}
-}
-
 void LLScriptModAssignment::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePass pass, LSCRIPTPruneType ptype, BOOL &prunearg, LLScriptScope *scope, LSCRIPTType &type, LSCRIPTType basetype, U64 &count, LLScriptByteCodeChunk *chunk, LLScriptByteCodeChunk *heap, S32 stacksize, LLScriptScopeEntry *entry, S32 entrycount, LLScriptLibData **ldata)
 {
 	if (gErrorToText.getErrors())
@@ -3195,58 +2427,6 @@ void LLScriptModAssignment::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCo
 S32 LLScriptModAssignment::getSize()
 {
 	return 0;
-}
-
-static void print_cil_eq(LLFILE* fp, LSCRIPTType left_type, LSCRIPTType right_type)
-{
-
-	switch(right_type)
-	{
-	case LST_INTEGER:
-	case LST_FLOATINGPOINT:
-
-		// Numeric equality.
-		fprintf(fp, "ceq\n");
-		break;
-
-	case LST_STRING:
-	        // NOTE: babbage: strings and keys can be compared, so a cast
-	        // may be required
-	        print_cil_cast(fp, left_type, right_type);
-		// String equality.
-		fprintf(fp, "call bool valuetype [mscorlib]System.String::op_Equality(string, string)\n");
-		break;
-
-	case LST_KEY:
-	        // NOTE: babbage: strings and keys can be compared, so a cast
-	        // may be required
-	        print_cil_cast(fp, left_type, right_type);
-
-		// Key equality.
-		fprintf(fp, "call int32 [LslUserScript]LindenLab.SecondLife.LslUserScript::'Equals'(valuetype [ScriptTypes]LindenLab.SecondLife.Key, valuetype [ScriptTypes]LindenLab.SecondLife.Key)\n");
-		break;
-
-	case LST_VECTOR:
-
-		// Vector equality.
-		fprintf(fp, "call int32 [LslUserScript]LindenLab.SecondLife.LslUserScript::'Equals'(class [ScriptTypes]LindenLab.SecondLife.Vector, class [ScriptTypes]LindenLab.SecondLife.Vector)\n");
-		break;
-
-	case LST_QUATERNION:
-
-		// Rotation equality.
-		fprintf(fp, "call int32 [LslUserScript]LindenLab.SecondLife.LslUserScript::'Equals'(class [ScriptTypes]LindenLab.SecondLife.Quaternion, class [ScriptTypes]LindenLab.SecondLife.Quaternion)\n");
-		break;
-
-	case LST_LIST:
-		fprintf(fp, "call int32 [LslUserScript]LindenLab.SecondLife.LslUserScript::Equals(class [mscorlib]System.Collections.ArrayList, class [mscorlib]System.Collections.ArrayList)\n");
-		break;
-
-	default:
-
-		// Error.
-		break;
-	}
 }
 
 void LLScriptEquality::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePass pass, LSCRIPTPruneType ptype, BOOL &prunearg, LLScriptScope *scope, LSCRIPTType &type, LSCRIPTType basetype, U64 &count, LLScriptByteCodeChunk *chunk, LLScriptByteCodeChunk *heap, S32 stacksize, LLScriptScopeEntry *entry, S32 entrycount, LLScriptLibData **ldata)
@@ -3317,14 +2497,6 @@ S32 LLScriptNotEquals::getSize()
 	return 0;
 }
 
-static void print_cil_lte(LLFILE* fp)
-{
-	// NOTE: LSL pushes operands backwards, so <= becomes >=
-	fprintf(fp, "clt\n");
-	fprintf(fp, "ldc.i4.0\n");
-	fprintf(fp, "ceq\n");
-}
-
 void LLScriptLessEquals::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePass pass, LSCRIPTPruneType ptype, BOOL &prunearg, LLScriptScope *scope, LSCRIPTType &type, LSCRIPTType basetype, U64 &count, LLScriptByteCodeChunk *chunk, LLScriptByteCodeChunk *heap, S32 stacksize, LLScriptScopeEntry *entry, S32 entrycount, LLScriptLibData **ldata)
 {
 	if (gErrorToText.getErrors())
@@ -3357,14 +2529,6 @@ void LLScriptLessEquals::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompi
 S32 LLScriptLessEquals::getSize()
 {
 	return 0;
-}
-
-static void print_cil_gte(LLFILE* fp)
-{
-	// NOTE: LSL pushes operands backwards, so >= becomes <=
-	fprintf(fp, "cgt\n");
-	fprintf(fp, "ldc.i4.0\n");
-	fprintf(fp, "ceq\n");
 }
 
 void LLScriptGreaterEquals::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePass pass, LSCRIPTPruneType ptype, BOOL &prunearg, LLScriptScope *scope, LSCRIPTType &type, LSCRIPTType basetype, U64 &count, LLScriptByteCodeChunk *chunk, LLScriptByteCodeChunk *heap, S32 stacksize, LLScriptScopeEntry *entry, S32 entrycount, LLScriptLibData **ldata)
@@ -3401,12 +2565,6 @@ S32 LLScriptGreaterEquals::getSize()
 	return 0;
 }
 
-static void print_cil_lt(LLFILE* fp)
-{
-	// NOTE: LSL pushes operands backwards, so < becomes >
-	fprintf(fp, "cgt\n");
-}
-
 void LLScriptLessThan::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePass pass, LSCRIPTPruneType ptype, BOOL &prunearg, LLScriptScope *scope, LSCRIPTType &type, LSCRIPTType basetype, U64 &count, LLScriptByteCodeChunk *chunk, LLScriptByteCodeChunk *heap, S32 stacksize, LLScriptScopeEntry *entry, S32 entrycount, LLScriptLibData **ldata)
 {
 	if (gErrorToText.getErrors())
@@ -3439,12 +2597,6 @@ void LLScriptLessThan::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompile
 S32 LLScriptLessThan::getSize()
 {
 	return 0;
-}
-
-static void print_cil_gt(LLFILE* fp)
-{
-    // NOTE: LSL pushes operands backwards, so > becomes <
-	fprintf(fp, "clt\n");
 }
 
 void LLScriptGreaterThan::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePass pass, LSCRIPTPruneType ptype, BOOL &prunearg, LLScriptScope *scope, LSCRIPTType &type, LSCRIPTType basetype, U64 &count, LLScriptByteCodeChunk *chunk, LLScriptByteCodeChunk *heap, S32 stacksize, LLScriptScopeEntry *entry, S32 entrycount, LLScriptLibData **ldata)
@@ -4318,22 +3470,6 @@ S32 LLScriptPostDecrement::getSize()
 }
 
 // Generate arg list.
-static void print_cil_arg_list(LLFILE *fp, LLScriptArgString& args)
-{
-	int i = 0;
-	bool finished = (i >= args.getNumber());
-	while(! finished)
-	{
-		print_cil_type(fp, args.getType(i));
-		++i;
-		finished = (i >= args.getNumber());
-		if(! finished)
-		{
-			fprintf(fp, ", ");
-		}
-	}
-}
-
 void LLScriptFunctionCall::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePass pass, LSCRIPTPruneType ptype, BOOL &prunearg, LLScriptScope *scope, LSCRIPTType &type, LSCRIPTType basetype, U64 &count, LLScriptByteCodeChunk *chunk, LLScriptByteCodeChunk *heap, S32 stacksize, LLScriptScopeEntry *entry, S32 entrycount, LLScriptLibData **ldata)
 {
 	if (gErrorToText.getErrors())
@@ -4553,31 +3689,6 @@ void LLScriptNOOP::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePass
 	gonext(fp, tabs, tabsize, pass, ptype, prunearg, scope, type, basetype, count, chunk, heap, stacksize, entry, entrycount, NULL);
 }
 
-void print_exit_pops(LLFILE *fp, LLScriptScopeEntry *entry)
-{
-	// remember that we need to pop in reverse order
-	S32 number, i;
-
-	if (entry->mLocals.mString)
-	{
-		number = (S32)strlen(entry->mLocals.mString);
-		for (i = number - 1; i >= 0; i--)
-		{
-			fprintf(fp, "%s\n", LSCRIPTTypePop[entry->mLocals.getType(i)]);
-		}
-	}
-
-	if (entry->mFunctionArgs.mString)
-	{
-		number = (S32)strlen(entry->mFunctionArgs.mString);
-		for (i = number - 1; i >= 0; i--)
-		{
-			fprintf(fp, "%s\n", LSCRIPTTypePop[entry->mFunctionArgs.getType(i)]);
-		}
-	}
-}
-
-
 S32 LLScriptStateChange::getSize()
 {
 	return 0;
@@ -4696,13 +3807,6 @@ void LLScriptLabel::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePas
 	gonext(fp, tabs, tabsize, pass, ptype, prunearg, scope, type, basetype, count, chunk, heap, stacksize, entry, entrycount, NULL);
 }
 
-void print_return(LLFILE *fp, LLScriptScopeEntry *entry)
-{
-	print_exit_pops(fp, entry);
-	fprintf(fp, "RETURN\n");
-}
-
-
 S32 LLScriptReturn::getSize()
 {
 	return 0;
@@ -4788,58 +3892,6 @@ void LLScriptExpressionStatement::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSC
 S32 LLScriptIf::getSize()
 {
 	return 0;
-}
-
-static void print_cil_if_test(LLFILE* fp, LSCRIPTType type)
-{
-	switch(type)
-	{
-	case LST_INTEGER:
-		break;
-	case LST_FLOATINGPOINT:
-		fprintf(fp, "ldc.r8 0\n");
-		fprintf(fp, "ceq\n");
-		fprintf(fp, "ldc.i4.0\n");
-		fprintf(fp, "ceq\n");
-		break;
-	case LST_VECTOR:
-		fprintf(fp, "ldc.r8 0\n");
-		fprintf(fp, "ldc.r8 0\n");
-		fprintf(fp, "ldc.r8 0\n");
-		fprintf(fp, "call class [ScriptTypes]LindenLab.SecondLife.Vector class [LslUserScript]LindenLab.SecondLife.LslUserScript::'CreateVector'(float32, float32, float32)\n");
-		fprintf(fp, "call bool [LslUserScript]LindenLab.SecondLife.LslUserScript::'Equals'(class [ScriptTypes]LindenLab.SecondLife.Vector, class [ScriptTypes]LindenLab.SecondLife.Vector)\n");
-		fprintf(fp, "ldc.i4.0\n");
-		fprintf(fp, "ceq\n");
-		break;
-	case LST_QUATERNION:
-		fprintf(fp, "ldc.r8 0\n");
-		fprintf(fp, "ldc.r8 0\n");
-		fprintf(fp, "ldc.r8 0\n");
-		fprintf(fp, "ldc.r8 1\n");
-		fprintf(fp, "call class [ScriptTypes]LindenLab.SecondLife.Quaternion class [LslUserScript]LindenLab.SecondLife.LslUserScript::'CreateQuaternion'(float32, float32, float32, float32)\n");
-		fprintf(fp, "call bool [LslUserScript]LindenLab.SecondLife.LslUserScript::'Equals'(class [ScriptTypes]LindenLab.SecondLife.Quaternion, class [ScriptTypes]LindenLab.SecondLife.Quaternion)\n");
-		fprintf(fp, "ldc.i4.0\n");
-		fprintf(fp, "ceq\n");
-		break;
-	case LST_KEY:
-		fprintf(fp, "call bool [LslUserScript]LindenLab.SecondLife.LslUserScript::'IsNonNullUuid'(valuetype [ScriptTypes]LindenLab.SecondLife.Key)\n");
-		break;
-	case LST_STRING:
-		fprintf(fp, "ldstr \"\"\n");
-		fprintf(fp, "call bool string::op_Equality(string, string)\n");
-		fprintf(fp, "ldc.i4.0\n");
-		fprintf(fp, "ceq\n");
-		break;
-	case LST_LIST:
-		fprintf(fp, "call class [mscorlib]System.Collections.ArrayList class [LslUserScript]LindenLab.SecondLife.LslUserScript::CreateList()\n");
-		fprintf(fp, "call bool [LslUserScript]LindenLab.SecondLife.LslUserScript::Equals(class [mscorlib]System.Collections.ArrayList, class [mscorlib]System.Collections.ArrayList)\n");
-		fprintf(fp, "ldc.i4.0\n");
-		fprintf(fp, "ceq\n");
-		break;
-	default:
-		break;
-	}
-
 }
 
 void LLScriptIf::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePass pass, LSCRIPTPruneType ptype, BOOL &prunearg, LLScriptScope *scope, LSCRIPTType &type, LSCRIPTType basetype, U64 &count, LLScriptByteCodeChunk *chunk, LLScriptByteCodeChunk *heap, S32 stacksize, LLScriptScopeEntry *entry, S32 entrycount, LLScriptLibData **ldata)
@@ -5166,23 +4218,6 @@ S32 LLScriptEventHandler::getSize()
 }
 
 U64 gCurrentHandler = 0;
-
-static void print_cil_local_init(LLFILE* fp, LLScriptScopeEntry* scopeEntry)
-{
-	if(scopeEntry->mLocals.getNumber() > 0)
-	{
-		fprintf(fp, ".locals init (");
-		for(int local = 0; local < scopeEntry->mLocals.getNumber(); ++local)
-		{
-			if(local > 0)
-			{
-				fprintf(fp, ", ");
-			}
-			print_cil_type(fp, scopeEntry->mLocals.getType(local));
-		}
-		fprintf(fp, ")\n");
-	}
-}
 
 void LLScriptEventHandler::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePass pass, LSCRIPTPruneType ptype, BOOL &prunearg, LLScriptScope *scope, LSCRIPTType &type, LSCRIPTType basetype, U64 &count, LLScriptByteCodeChunk *chunk, LLScriptByteCodeChunk *heap, S32 stacksize, LLScriptScopeEntry *entry, S32 entrycount, LLScriptLibData **ldata)
 {
@@ -5644,34 +4679,6 @@ void LLScriptState::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePas
 // in the supplied buffer, which should be at least 32 chars long.
 // If the string starts with a UUID, all characters in the UUID are included
 // in the generated name.
-void to_class_name(char* buffer, const char* string)
-{
-	strcpy(buffer, "LSL-");
-	strcat(buffer, string);
-	char* current_char = buffer;
-	while((*current_char) != 0)
-	{
-		if(isalnum(*current_char))
-		{
-			++current_char;
-		}
-		else if((*current_char) == '-')
-		{
-			(*current_char) = '_';
-			++current_char;
-		}
-		else
-		{
-			(*current_char) = 0;
-		}
-	}
-}
-
-void LLScriptScript::setClassName(const char* class_name)
-{
-	to_class_name(mClassName, class_name);
-}
-
 S32 LLScriptScript::getSize()
 {
 	return 0;
@@ -5728,22 +4735,6 @@ LLScriptScript::LLScriptScript(LLScritpGlobalStorage *globals,
 	}
 
 	mClassName[0] = '\0';
-}
-
-void LLScriptScript::setBytecodeDest(const char* dst_filename)
-{
-	mBytecodeDest = ll_safe_string(dst_filename);
-}
-
-static void print_cil_globals(LLFILE* fp, LLScriptGlobalVariable* global)
-{
-	fprintf(fp, ".field public ");
-	print_cil_type(fp, global->mType->mType);
-	fprintf(fp, " '%s'\n", global->mIdentifier->mName);
-	if(NULL != global->mNextp)
-	{
-		print_cil_globals(fp, global->mNextp);
-	}
 }
 
 void LLScriptScript::recurse(LLFILE *fp, S32 tabs, S32 tabsize, LSCRIPTCompilePass pass, LSCRIPTPruneType ptype, BOOL &prunearg, LLScriptScope *scope, LSCRIPTType &type, LSCRIPTType basetype, U64 &count, LLScriptByteCodeChunk *chunk, LLScriptByteCodeChunk *heap, S32 stacksize, LLScriptScopeEntry *entry, S32 entrycount, LLScriptLibData **ldata)
