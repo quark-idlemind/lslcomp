@@ -7,6 +7,7 @@ FS			(f|F)
 %e 10000
 %n 4000
 %p 5000
+%option reentrant noyywrap never-interactive
 
 %top {
 	#include "linden_common.h"
@@ -18,75 +19,47 @@ FS			(f|F)
 #pragma warning (disable : 4018) // warning C4018: signed/unsigned mismatch
 #pragma warning (disable : 4702) // warning C4702: unreachable code
 #endif	//	LL_WINDOWS
-//#include "llmath.h"
+
 #include "lscript_tree.h"
 #include "lscript_typecheck.h"
 #include "indra.y.hpp"
-//#include "lltimer.h"
-//#include "indra_constants.h"
-//#include "llagentconstants.h"
-//#include "lllslconstants.h"
-//#include "lluuid.h"
-//#include "llassetstorage.h"
-//#include "llpartdata.h"
-//#include "llvehicleparams.h"
-//#include "llpermissionsflags.h"
-//#include "llfollowcamparams.h"
-//#include "llparcelflags.h"
-//#include "llregionflags.h"
-//#include "lscript_http.h"
-//#include "llclickaction.h"
-//#include "llmediaentry.h"
-// <FS:CR> Add OSSL constants for OS builds
-//#ifdef OPENSIM
-//#include "osslconstants.h"
-//#endif // OPENSIM
-// </FS:CR>
-
-void count();
-void line_comment();
-void block_comment();
-void parse_string();
 
 #define YYLMAX 16384
-#define YY_NEVER_INTERACTIVE 1 /* stops flex from calling isatty() */
-#ifdef LL_WINDOWS
-#define isatty(x) 0 /* hack for bug in cygwin flex 2.5.35 */
-#endif
 
 #ifdef ECHO
 #undef ECHO
 #endif
-
 #define ECHO do { } while (0)
 
-#define yyparse indra_parse
-#define yyerror indra_error
-#define yylval indra_lval
-#define yy_create_buffer indra__create_buffer
+// Convenient alias for the reentrant scanner handle (void* internally).
+typedef void* yyscan_t;
+
+// Map standard API names to the indra_-prefixed reentrant symbols.
+#define yylval           indra_lval       // global token value (YYSTYPE)
+#define yyparse          indra_parse
+#define yyerror          indra_error
+#define yylex_init       indra_lex_init
+#define yylex_destroy    indra_lex_destroy
+#define yy_scan_string   indra__scan_string
 #define yy_delete_buffer indra__delete_buffer
-#define yy_flex_debug indra__flex_debug
-#define yy_init_buffer indra__init_buffer
-#define yy_flush_buffer indra__flush_buffer
-#define yy_load_buffer_state indra__load_buffer_state
-#define yy_switch_to_buffer indra__switch_to_buffer
-#define yyin indra_in
-#define yyleng indra_leng
-#define yylex indra_lex
-#define yylineno indra_lineno
-#define yyout indra_out
-#define yyrestart indra_restart
-#define yytext indra_text
-#define yywrap indra_wrap
-#define yyalloc indra_alloc
-#define yyrealloc indra_realloc
-#define yyfree indra_free
 
+// Forward declaration: bison 2.3 does not put this in the generated header
+// when %parse-param is used.  Declared here so lscript_compile() can call it.
+int yyparse(yyscan_t scanner);
 
-int yylex( void );
-int yyparse( void );
-int yyerror(const char *fmt, ...);
+// Forward declarations for scanner-aware helper functions.
+// These are defined in the user code section (after the second %%).
+void _count(yyscan_t scanner);
+void _line_comment(yyscan_t scanner);
+void _block_comment(yyscan_t scanner);
+void _parse_string(yyscan_t scanner);
 
+// Macros so rule actions need no source changes.  Inside a flex rule
+// action, yyscanner is the implicit reentrant scanner variable.
+#define count()         _count(yyscanner)
+#define line_comment()  _line_comment(yyscanner)
+#define block_comment() _block_comment(yyscanner)
+#define parse_string()  _parse_string(yyscanner)
 
 %}
 
@@ -227,19 +200,13 @@ L?\"(\\.|[^\\"])*\"	{ parse_string(); count(); return(STRING_CONSTANT); }
 LLScriptAllocationManager	*gAllocationManager;
 LLScriptScript				*gScriptp;
 
-// Prototype for the yacc parser entry point
-int yyparse(void);
-
-int yyerror(const char *fmt, ...)
+int yyerror(yyscan_t scanner, const char *msg)
 {
-	gErrorToText.writeError(yyout, gLine, gColumn, LSERROR_SYNTAX_ERROR);
+	gErrorToText.writeError(NULL, gLine, gColumn, LSERROR_SYNTAX_ERROR);
 	return 0;
 }
 
-//#define EMERGENCY_DEBUG_PRINTOUTS
-//#define EMIT_CIL_ASSEMBLER
-
-BOOL lscript_compile(const char* src_filename)
+BOOL lscript_compile(const char* src_string)
 {
 	BOOL			b_parse_ok = FALSE;
 	BOOL			b_dummy = FALSE;
@@ -254,34 +221,25 @@ BOOL lscript_compile(const char* src_filename)
 	init_supported_expressions();
 	gAllocationManager = new LLScriptAllocationManager();
 
-	yyin = LLFile::fopen(std::string(src_filename), "r");
-	if (!yyin)
+	// Initialize reentrant scanner and feed input from the string buffer.
+	yyscan_t scanner;
+	yylex_init(&scanner);
+	YY_BUFFER_STATE buf = yy_scan_string(src_string, scanner);
+
+	b_parse_ok = !yyparse(scanner);
+
+	yy_delete_buffer(buf, scanner);
+	yylex_destroy(scanner);
+
+	if (b_parse_ok)
 	{
-		fprintf(stderr, "ERROR: cannot open '%s'\n", src_filename);
-	}
-	else
-	{
-		// Errors are written to stderr; yyout is only used as a dummy
-		// fp argument to recurse() -- no output file is created.
-		yyout = stderr;
-
-		// Reset the lexer's internal buffering.
-
-		yyrestart(yyin);
-
-		b_parse_ok = !yyparse();
-
-		if (b_parse_ok)
-		{
-			gScopeStringTable = new LLStringTable(16384);
-			gScriptp->recurse(yyout, 0, 0, LSCP_PRUNE,		 LSPRUNE_INVALID, b_dummy, NULL, type, type, b_dummy_count, NULL, NULL, 0, NULL, 0, NULL);
-			gScriptp->recurse(yyout, 0, 0, LSCP_SCOPE_PASS1, LSPRUNE_INVALID, b_dummy, NULL, type, type, b_dummy_count, NULL, NULL, 0, NULL, 0, NULL);
-			gScriptp->recurse(yyout, 0, 0, LSCP_SCOPE_PASS2, LSPRUNE_INVALID, b_dummy, NULL, type, type, b_dummy_count, NULL, NULL, 0, NULL, 0, NULL);
-			gScriptp->recurse(yyout, 0, 0, LSCP_TYPE,		 LSPRUNE_INVALID, b_dummy, NULL, type, type, b_dummy_count, NULL, NULL, 0, NULL, 0, NULL);
-			delete gScopeStringTable;
-			gScopeStringTable = NULL;
-		}
-		fclose(yyin);
+		gScopeStringTable = new LLStringTable(16384);
+		gScriptp->recurse(stderr, 0, 0, LSCP_PRUNE,		 LSPRUNE_INVALID, b_dummy, NULL, type, type, b_dummy_count, NULL, NULL, 0, NULL, 0, NULL);
+		gScriptp->recurse(stderr, 0, 0, LSCP_SCOPE_PASS1, LSPRUNE_INVALID, b_dummy, NULL, type, type, b_dummy_count, NULL, NULL, 0, NULL, 0, NULL);
+		gScriptp->recurse(stderr, 0, 0, LSCP_SCOPE_PASS2, LSPRUNE_INVALID, b_dummy, NULL, type, type, b_dummy_count, NULL, NULL, 0, NULL, 0, NULL);
+		gScriptp->recurse(stderr, 0, 0, LSCP_TYPE,		 LSPRUNE_INVALID, b_dummy, NULL, type, type, b_dummy_count, NULL, NULL, 0, NULL, 0, NULL);
+		delete gScopeStringTable;
+		gScopeStringTable = NULL;
 	}
 
 	delete gAllocationManager;
@@ -293,28 +251,17 @@ BOOL lscript_compile(const char* src_filename)
 	return b_parse_ok && !gErrorToText.getErrors();
 }
 
-
-S32 yywrap()
-{
-#if defined(FLEX_SCANNER) && !defined(LL_WINDOWS)
-	// get gcc to stop complaining about lack of use of yyunput
-	(void) yyunput;
-#endif
-	return(1);
-}
-
-void line_comment()
+void _line_comment(yyscan_t scanner)
 {
 	char c;
-
-	while ((c = yyinput()) != '\n' && c != 0 && c != EOF)
+	while ((c = yyinput(scanner)) != '\n' && c != 0 && c != EOF)
 		;
 }
 
-void block_comment()
+void _block_comment(yyscan_t scanner)
 {
 	char c1 = 0;
-	char c2 = yyinput();
+	char c2 = yyinput(scanner);
 	while (c2 != 0 && c2 != EOF && !(c1 == '*' && c2 == '/')) {
 		if (c2 == '\n')
 		{
@@ -326,34 +273,36 @@ void block_comment()
 		else
 			gInternalColumn++;
 		c1 = c2;
-		c2 = yyinput();
+		c2 = yyinput(scanner);
 	}
 }
 
-void count()
+void _count(yyscan_t scanner)
 {
+	const char *text = indra_get_text(scanner);
 	S32 i;
 
 	gColumn = gInternalColumn;
 	gLine = gInternalLine;
 
-	for (i = 0; yytext[i] != '\0'; i++)
-		if (yytext[i] == '\n')
+	for (i = 0; text[i] != '\0'; i++)
+		if (text[i] == '\n')
 		{
 			gInternalLine++;
 			gInternalColumn = 0;
 		}
-		else if (yytext[i] == '\t')
+		else if (text[i] == '\t')
 			gInternalColumn += 4 - (gInternalColumn % 8);
 		else
 			gInternalColumn++;
 }
 
-void parse_string()
+void _parse_string(yyscan_t scanner)
 {
-	S32 length = (S32)strlen(yytext);
-	length = length - 2; 
-	char *temp = yytext + 1;
+	const char *text = indra_get_text(scanner);
+	S32 length = (S32)strlen(text);
+	length = length - 2;
+	const char *temp = text + 1;
 
 	S32 i;
 	S32 escapes = 0;

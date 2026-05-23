@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "indra.l.hpp"
 
@@ -31,7 +32,31 @@ int main(int argc, char *argv[])
         snprintf(src_filename, MAX_STRING, "%s.lsl", argv[1]);
     src_filename[MAX_STRING - 1] = '\0';
 
+    // Read the entire source file into memory, then pass the string to
+    // the compiler so the lexer can run from a buffer rather than a file.
+    FILE *f = fopen(src_filename, "r");
+    if (!f)
+    {
+        fprintf(stderr, "ERROR: cannot open '%s'\n", src_filename);
+        return 1;
+    }
+    fseek(f, 0, SEEK_END);
+    long file_size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    char *content = (char *)malloc(file_size + 1);
+    if (!content)
+    {
+        fclose(f);
+        fputs("Out of memory.\n", stderr);
+        return 1;
+    }
+    fread(content, 1, file_size, f);
+    content[file_size] = '\0';
+    fclose(f);
+
     // lscript_compile returns TRUE (1) on success, FALSE (0) on any error.
     // Invert so that exit 0 = clean, exit 1 = errors found.
-    return !lscript_compile(src_filename);
+    int result = !lscript_compile(content);
+    free(content);
+    return result;
 }

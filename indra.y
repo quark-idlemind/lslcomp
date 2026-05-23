@@ -2,9 +2,11 @@
 	#include "linden_common.h"
 	#include "lscript_tree.h"
 
-	int yylex(void);
-	int yyparse( void );
-	int yyerror(const char *fmt, ...);
+	// yyscan_t is the reentrant flex scanner handle (void* under the hood).
+	typedef void* yyscan_t;
+
+	int yylex(yyscan_t scanner);
+	int yyerror(yyscan_t scanner, const char *msg);
 
     #if LL_LINUX
     // broken yacc codegen...  --ryan.
@@ -16,6 +18,9 @@
 	#pragma warning( disable : 4065 )	// warning: switch statement contains 'default' but no 'case' labels
 	#endif
 %}
+
+%lex-param   { yyscan_t scanner }
+%parse-param { yyscan_t scanner }
 
 %union
 {

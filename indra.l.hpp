@@ -3,9 +3,9 @@
 
 #include "stdtypes.h"
 
-// Parse src_filename, run the error-checking passes (PRUNE, SCOPE_PASS1,
-// SCOPE_PASS2, TYPE), write any diagnostics to stderr, and return TRUE if
-// the script is clean (no errors).
-BOOL lscript_compile(const char* src_filename);
+// Parse src_string (null-terminated LSL source), run the error-checking
+// passes (PRUNE, SCOPE_PASS1, SCOPE_PASS2, TYPE), write any diagnostics
+// to stderr, and return TRUE if the script is clean (no errors).
+BOOL lscript_compile(const char* src_string);
 
 #endif
