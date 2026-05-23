@@ -3,3 +3,5 @@
 *.o
 *.a
 indra.l
+test_leak
+lslcomp
