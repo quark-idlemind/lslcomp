@@ -1,10 +1,10 @@
-package parse_test
+package lslcomp_test
 
 import (
 	"strings"
 	"testing"
 
-	"github.com/quark-idlemind/LSL-compiler/parse"
+	lslcomp "github.com/quark-idlemind/LSL-compiler"
 )
 
 // cleanScript is a syntactically and semantically correct LSL program.
@@ -43,13 +43,13 @@ const syntaxErrScript = `default
 `
 
 func TestParseCleanScript(t *testing.T) {
-	if err := parse.Parse(cleanScript); err != nil {
+	if err := lslcomp.Parse(cleanScript); err != nil {
 		t.Errorf("expected no error for clean script, got: %v", err)
 	}
 }
 
 func TestParseTypeError(t *testing.T) {
-	err := parse.Parse(typeErrScript)
+	err := lslcomp.Parse(typeErrScript)
 	if err == nil {
 		t.Fatal("expected error for type-mismatch script, got nil")
 	}
@@ -60,7 +60,7 @@ func TestParseTypeError(t *testing.T) {
 }
 
 func TestParseSyntaxError(t *testing.T) {
-	err := parse.Parse(syntaxErrScript)
+	err := lslcomp.Parse(syntaxErrScript)
 	if err == nil {
 		t.Fatal("expected error for syntax-error script, got nil")
 	}

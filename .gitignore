@@ -2,8 +2,3 @@
 *.x
 *.o
 indra.l
-indra.l.cpp
-indra.y.cpp
-indra.y.hpp
-lscript_library/lscript_library.cpp
-lslcomp

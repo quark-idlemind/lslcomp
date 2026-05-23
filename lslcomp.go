@@ -1,5 +1,5 @@
-// Package parse provides LSL script syntax checking via the LSL compiler.
-package parse
+// Package lslcomp provides LSL script syntax checking via the LSL compiler.
+package lslcomp
 
 /*
 #cgo CPPFLAGS: -I${SRCDIR} -I${SRCDIR}/llcommon -I${SRCDIR}/lscript -DLINUX=1
