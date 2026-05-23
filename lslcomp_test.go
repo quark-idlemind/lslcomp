@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	lslcomp "github.com/quark-idlemind/LSL-compiler"
+	lslcomp "github.com/quark-idlemind/lslcomp"
 )
 
 // cleanScript is a syntactically and semantically correct LSL program.

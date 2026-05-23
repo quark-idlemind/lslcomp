@@ -1,3 +1,3 @@
-module github.com/quark-idlemind/LSL-compiler
+module github.com/quark-idlemind/lslcomp
 
 go 1.26.1
