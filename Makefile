@@ -5,7 +5,7 @@ LDFLAGS=
 
 LSLK=~/apps/secondlife/scripts/lslkeywords/
 
-all : lslcomp
+all : lslcomp libLSLCompiler.a
 
 indra.l : indra.l.in
 	$(LSLK)lsl2dfg/LSL2dfg.py -y -d $(LSLK)database/kwdb.xml -g sl -f indralex -i $< -o $@
@@ -51,6 +51,9 @@ COMPILER_OBJS = indra.l.o indra.y.o\
 lslcomp : lslcomp.o $(COMPILER_OBJS)
 	g++ $(CFLAGS) $(LDFLAGS) lslcomp.o $(COMPILER_OBJS) -o lslcomp
 
+libLSLCompiler.a : $(COMPILER_OBJS)
+	ar rcs $@ $^
+
 tests/test_leak.o : tests/test_leak.cpp indra.l.hpp
 	$(CXX) -c $(CFLAGS) $(CPPFLAGS) -I. tests/test_leak.cpp -o tests/test_leak.o
 
@@ -59,7 +62,7 @@ test_leak : tests/test_leak.o $(COMPILER_OBJS)
 
 
 clean :
-	rm -f lslcomp test_leak *.o tests/test_leak.o\
+	rm -f lslcomp test_leak libLSLCompiler.a *.o tests/test_leak.o\
  lscript_library/*.o llcommon/*.o\
  indra.l.cpp indra.l indra.y.cpp indra.y.hpp\
  lscript_library/lscript_library.cpp

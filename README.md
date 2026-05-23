@@ -1,3 +1,8 @@
+# LSL Syntax Checker
+
+This package is a fork of
+
+
 # LSL-compiler
 
 This is a standalone LSL compiler, extracted from the viewer sources. Its main purpose is to allow the analysis of the generated code, providing an insight into the internals of Mono and LSO, but it can also be used as an external syntax checking tool.
