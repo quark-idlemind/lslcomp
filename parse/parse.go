@@ -2,9 +2,7 @@
 package parse
 
 /*
-#cgo CPPFLAGS: -I${SRCDIR}/.. -I${SRCDIR}/../llcommon -I${SRCDIR}/../lscript -DLINUX=1
-#cgo darwin LDFLAGS: ${SRCDIR}/../libLSLCompiler.a -lc++
-#cgo linux  LDFLAGS: ${SRCDIR}/../libLSLCompiler.a -lstdc++
+#cgo CPPFLAGS: -I${SRCDIR} -I${SRCDIR}/llcommon -I${SRCDIR}/lscript -DLINUX=1
 
 #include <stdlib.h>
 #include "lsl_parse.h"

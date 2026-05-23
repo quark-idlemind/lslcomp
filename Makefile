@@ -1,70 +1,83 @@
 CXX=g++
-CPPFLAGS=-DLINUX=1 -Illcommon -Ilscript
+CPPFLAGS=-DLINUX=1 -Iparse -Iparse/llcommon -Iparse/lscript
 CFLAGS=-g -O0 -Wall -Wextra -Wunused-function
 LDFLAGS=
 
 LSLK=~/apps/secondlife/scripts/lslkeywords/
 
-all : lslcomp libLSLCompiler.a
+all : lslcomp
 
-indra.l : indra.l.in
-	$(LSLK)lsl2dfg/LSL2dfg.py -y -d $(LSLK)database/kwdb.xml -g sl -f indralex -i $< -o $@
+# ---- Code generation -------------------------------------------------
+# The generated files (indra.l.cpp, indra.y.cpp, indra.y.hpp,
+# lscript_library.cpp) are committed to parse/ so that 'go build' works
+# without requiring kwdb, flex, or bison.  Re-run 'make generate' only
+# when the templates change, then commit the new generated files.
 
-lscript_library/lscript_library.cpp : lscript_library/lscript_library.cpp.in
-	\
-   $(LSLK)lsl2dfg/LSL2dfg.py -d $(LSLK)database/kwdb.xml -g sl -f viewersrc -i $<\
- | $(LSLK)lsl2dfg/LSL2dfg.py -d $(LSLK)database/kwdb.xml -f viewersrc -g os,-sl -t OSSL\
- | $(LSLK)lsl2dfg/LSL2dfg.py -d $(LSLK)database/kwdb.xml -f viewersrc -g aa,-os,-sl -t AA -o $@
+parse/indra.l : parse/indra.l.in
+	$(LSLK)lsl2dfg/LSL2dfg.py -y -d $(LSLK)database/kwdb.xml -g sl \
+	  -f indralex -i $< -o $@
 
+parse/lscript_library.cpp : parse/lscript_library.cpp.in
+	$(LSLK)lsl2dfg/LSL2dfg.py -d $(LSLK)database/kwdb.xml -g sl \
+	  -f viewersrc -i $< \
+	| $(LSLK)lsl2dfg/LSL2dfg.py -d $(LSLK)database/kwdb.xml \
+	  -f viewersrc -g os,-sl -t OSSL \
+	| $(LSLK)lsl2dfg/LSL2dfg.py -d $(LSLK)database/kwdb.xml \
+	  -f viewersrc -g aa,-os,-sl -t AA -o $@
 
-indra.l.cpp : indra.l
-	flex -P indra_ -o indra.l.cpp indra.l
+parse/indra.l.cpp : parse/indra.l
+	flex -P indra_ -o $@ $<
 
-indra.y.cpp indra.y.hpp : indra.y
-	bison -p indra_ -d -o indra.y.cpp indra.y
+parse/indra.y.cpp parse/indra.y.hpp : parse/indra.y
+	bison -p indra_ -d -o parse/indra.y.cpp parse/indra.y
 
+generate : parse/indra.l.cpp parse/indra.y.cpp parse/indra.y.hpp \
+           parse/lscript_library.cpp
+
+# ---- Compilation rules -----------------------------------------------
 
 %.o : %.cpp
 	$(CXX) -c $(CFLAGS) $(CPPFLAGS) "$<" -o "$@"
 
-# Known problem: there are more unlisted dependencies than these,
-# mainly lots of .h files, but we're not analyzing them. Make clean if
-# in doubt.
-lscript_library/lscript_library.o : lscript_library/lscript_library.cpp
-lslcomp.o : lslcomp.cpp
-lscript_error.o : lscript_error.cpp
-lscript_scope.o : lscript_scope.cpp
-lscript_tree.o : lscript_tree.cpp lscript_tree.h llcommon/llstring.h
-lscript_typecheck.o : lscript_typecheck.cpp
-indra.l.o : indra.l.cpp indra.y.hpp
-indra.y.o : indra.y.cpp indra.y.hpp
-llcommon/llfile.o : llcommon/llfile.cpp
-llcommon/llstringtable.o : llcommon/llstringtable.cpp
+parse/lscript_library.o  : parse/lscript_library.cpp
+lslcomp.o                : lslcomp.cpp parse/indra.l.hpp
+parse/lscript_error.o    : parse/lscript_error.cpp
+parse/lscript_scope.o    : parse/lscript_scope.cpp
+parse/lscript_tree.o     : parse/lscript_tree.cpp parse/lscript_tree.h \
+                            parse/llcommon/llstring.h
+parse/lscript_typecheck.o: parse/lscript_typecheck.cpp
+parse/indra.l.o          : parse/indra.l.cpp parse/indra.y.hpp
+parse/indra.y.o          : parse/indra.y.cpp parse/indra.y.hpp
+parse/llfile.o           : parse/llfile.cpp
+parse/llstringtable.o    : parse/llstringtable.cpp
 
-COMPILER_OBJS = indra.l.o indra.y.o\
- lscript_library/lscript_library.o\
- lscript_error.o\
- lscript_scope.o lscript_tree.o\
- lscript_typecheck.o\
- llcommon/llfile.o llcommon/llstringtable.o
+COMPILER_OBJS = \
+  parse/indra.l.o \
+  parse/indra.y.o \
+  parse/lscript_library.o \
+  parse/lscript_error.o \
+  parse/lscript_scope.o \
+  parse/lscript_tree.o \
+  parse/lscript_typecheck.o \
+  parse/llfile.o \
+  parse/llstringtable.o
+
+# ---- Binaries --------------------------------------------------------
 
 lslcomp : lslcomp.o $(COMPILER_OBJS)
 	g++ $(CFLAGS) $(LDFLAGS) lslcomp.o $(COMPILER_OBJS) -o lslcomp
 
-libLSLCompiler.a : $(COMPILER_OBJS)
-	ar rcs $@ $^
-
-tests/test_leak.o : tests/test_leak.cpp indra.l.hpp
-	$(CXX) -c $(CFLAGS) $(CPPFLAGS) -I. tests/test_leak.cpp -o tests/test_leak.o
+tests/test_leak.o : tests/test_leak.cpp parse/indra.l.hpp
+	$(CXX) -c $(CFLAGS) $(CPPFLAGS) tests/test_leak.cpp \
+	  -o tests/test_leak.o
 
 test_leak : tests/test_leak.o $(COMPILER_OBJS)
-	g++ $(CFLAGS) $(LDFLAGS) tests/test_leak.o $(COMPILER_OBJS) -o test_leak
+	g++ $(CFLAGS) $(LDFLAGS) tests/test_leak.o $(COMPILER_OBJS) \
+	  -o test_leak
 
+# ---- Maintenance -----------------------------------------------------
 
 clean :
-	rm -f lslcomp test_leak libLSLCompiler.a *.o tests/test_leak.o\
- lscript_library/*.o llcommon/*.o\
- indra.l.cpp indra.l indra.y.cpp indra.y.hpp\
- lscript_library/lscript_library.cpp
+	rm -f lslcomp test_leak *.o parse/*.o tests/test_leak.o
 
-.PHONY : all clean test_leak
+.PHONY : all clean generate test_leak
