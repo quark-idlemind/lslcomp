@@ -154,6 +154,12 @@ public:
 	//   (line, col) : ERROR : message
 	void printDiagnostics(FILE *fp) const;
 
+	// Return all collected diagnostics as a single malloc'd string, one
+	// diagnostic per line in the same "(line, col) : ERROR : message"
+	// format.  Returns NULL if there are no diagnostics.
+	// The caller is responsible for calling free() on the result.
+	char* formatDiagnostics() const;
+
 	// Access the collected diagnostics for custom display.
 	const std::vector<LLScriptDiagnostic>& getDiagnostics() const
 		{ return mDiagnostics; }

@@ -120,6 +120,26 @@ void LLScriptGenerateErrorText::printDiagnostics(FILE *fp) const
 	}
 }
 
+char* LLScriptGenerateErrorText::formatDiagnostics() const
+{
+	if (mDiagnostics.empty())
+		return NULL;
+
+	// Build the full text into a std::string, then hand ownership to the
+	// caller via a malloc-backed copy (strdup uses malloc; caller calls free).
+	std::string s;
+	char buf[512];
+	for (const LLScriptDiagnostic& d : mDiagnostics)
+	{
+		snprintf(buf, sizeof(buf), "(%d, %d) : %s : %s\n",
+		         d.mLine, d.mColumn,
+		         d.mIsError ? "ERROR" : "WARNING",
+		         d.mText.c_str());
+		s += buf;
+	}
+	return strdup(s.c_str());
+}
+
 std::string getLScriptErrorString(LSCRIPTErrors error)
 {
 	return gErrorText[error];

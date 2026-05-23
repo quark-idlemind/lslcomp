@@ -19,6 +19,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include "indra.l.hpp"
 
 // URL constants referenced by lscript_library but normally defined in
@@ -71,28 +72,34 @@ int main()
 
     for (int i = 0; i < N; ++i)
     {
-        BOOL ok;
+        const char* errs;
 
-        ok = lscript_compile(CLEAN);
-        if (!ok)
+        // Clean script must return NULL (no errors).
+        errs = lscript_compile(CLEAN);
+        if (errs != NULL)
         {
             printf("FAIL [iter %d]: clean script failed unexpectedly\n", i);
             ++failures;
         }
+        free((void*)errs);   // free(NULL) is safe
 
-        ok = lscript_compile(TYPE_ERR);
-        if (ok)
+        // Type-error script must return a non-NULL error string.
+        errs = lscript_compile(TYPE_ERR);
+        if (errs == NULL)
         {
             printf("FAIL [iter %d]: type-error script succeeded unexpectedly\n", i);
             ++failures;
         }
+        free((void*)errs);
 
-        ok = lscript_compile(SYNTAX_ERR);
-        if (ok)
+        // Syntax-error script must return a non-NULL error string.
+        errs = lscript_compile(SYNTAX_ERR);
+        if (errs == NULL)
         {
             printf("FAIL [iter %d]: syntax-error script succeeded unexpectedly\n", i);
             ++failures;
         }
+        free((void*)errs);
     }
 
     if (failures == 0)

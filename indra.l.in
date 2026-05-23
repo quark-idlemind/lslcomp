@@ -206,7 +206,7 @@ int yyerror(yyscan_t scanner, const char *msg)
 	return 0;
 }
 
-BOOL lscript_compile(const char* src_string)
+const char* lscript_compile(const char* src_string)
 {
 	BOOL			b_parse_ok = FALSE;
 	BOOL			b_dummy = FALSE;
@@ -245,10 +245,9 @@ BOOL lscript_compile(const char* src_string)
 	delete gAllocationManager;
 	delete gScopeStringTable;
 
-	// Print all collected diagnostics now that all passes are complete.
-	gErrorToText.printDiagnostics(stderr);
-
-	return b_parse_ok && !gErrorToText.getErrors();
+	// Return all diagnostics as a malloc'd string (NULL if script is clean).
+	// The caller is responsible for free()ing the returned string.
+	return gErrorToText.formatDiagnostics();
 }
 
 void _line_comment(yyscan_t scanner)

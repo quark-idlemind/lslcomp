@@ -54,9 +54,15 @@ int main(int argc, char *argv[])
     content[file_size] = '\0';
     fclose(f);
 
-    // lscript_compile returns TRUE (1) on success, FALSE (0) on any error.
-    // Invert so that exit 0 = clean, exit 1 = errors found.
-    int result = !lscript_compile(content);
+    // lscript_compile returns NULL if clean, or a malloc'd error string.
+    const char* errors = lscript_compile(content);
     free(content);
-    return result;
+
+    if (errors != NULL)
+    {
+        fputs(errors, stderr);
+        free((void*)errors);
+        return 1;
+    }
+    return 0;
 }
