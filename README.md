@@ -1,6 +1,6 @@
 # LSL Syntax Checker
 
-This package is a fork of `https://github.com/Sei-Lisa/LSL-compiler.git`. The compiler has been stripped down to focus solely on syntax checking. Rebranded as a Go package named `lslcomp`, it exposes a `Parse` function that accepts LSL source code as input. This function returns `nil` if no compilation errors are found, or an error containing all issues uncovered by the compiler.
+This package is a fork of [github.com/Sei-Lisa/LSL-compiler](https://github.com/Sei-Lisa/LSL-compiler.git). The compiler has been stripped down to focus solely on syntax checking. Rebranded as a Go package named `lslcomp`, it exposes a `Parse` function that accepts LSL source code as input. This function returns `nil` if no compilation errors are found, or an error containing all issues uncovered by the compiler.
 
 ## Regenerating the committed C++ sources
 
