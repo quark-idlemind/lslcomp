@@ -73,28 +73,51 @@ const char* gErrorText[LSERROR_EOF] = 	/*Flawfinder: ignore*/
 	"Bytecode verification failed"
 };
 
+// Internal helper: append one diagnostic to the list.
+static void collect(std::vector<LLScriptDiagnostic>& diags,
+                    S32 line, S32 col, bool is_error, const char* text)
+{
+	LLScriptDiagnostic d;
+	d.mLine    = line;
+	d.mColumn  = col;
+	d.mIsError = is_error;
+	d.mText    = text;
+	diags.push_back(d);
+}
+
 void LLScriptGenerateErrorText::writeWarning(LLFILE *fp, LLScriptFilePosition *pos, LSCRIPTWarnings warning)
 {
-	fprintf(stderr, "(%d, %d) : WARNING : %s\n", pos->mLineNumber, pos->mColumnNumber, gWarningText[warning]);
+	collect(mDiagnostics, pos->mLineNumber, pos->mColumnNumber, false, gWarningText[warning]);
 	mTotalWarnings++;
 }
 
 void LLScriptGenerateErrorText::writeWarning(LLFILE *fp, S32 line, S32 col, LSCRIPTWarnings warning)
 {
-	fprintf(stderr, "(%d, %d) : WARNING : %s\n", line, col, gWarningText[warning]);
+	collect(mDiagnostics, line, col, false, gWarningText[warning]);
 	mTotalWarnings++;
 }
 
 void LLScriptGenerateErrorText::writeError(LLFILE *fp, LLScriptFilePosition *pos, LSCRIPTErrors error)
 {
-	fprintf(stderr, "(%d, %d) : ERROR : %s\n", pos->mLineNumber, pos->mColumnNumber, gErrorText[error]);
+	collect(mDiagnostics, pos->mLineNumber, pos->mColumnNumber, true, gErrorText[error]);
 	mTotalErrors++;
 }
 
 void LLScriptGenerateErrorText::writeError(LLFILE *fp, S32 line, S32 col, LSCRIPTErrors error)
 {
-	fprintf(stderr, "(%d, %d) : ERROR : %s\n", line, col, gErrorText[error]);
+	collect(mDiagnostics, line, col, true, gErrorText[error]);
 	mTotalErrors++;
+}
+
+void LLScriptGenerateErrorText::printDiagnostics(FILE *fp) const
+{
+	for (const LLScriptDiagnostic& d : mDiagnostics)
+	{
+		fprintf(fp, "(%d, %d) : %s : %s\n",
+		        d.mLine, d.mColumn,
+		        d.mIsError ? "ERROR" : "WARNING",
+		        d.mText.c_str());
+	}
 }
 
 std::string getLScriptErrorString(LSCRIPTErrors error)

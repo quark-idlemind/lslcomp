@@ -287,6 +287,9 @@ BOOL lscript_compile(const char* src_filename)
 	delete gAllocationManager;
 	delete gScopeStringTable;
 
+	// Print all collected diagnostics now that all passes are complete.
+	gErrorToText.printDiagnostics(stderr);
+
 	return b_parse_ok && !gErrorToText.getErrors();
 }
 

@@ -27,6 +27,8 @@
 #ifndef LL_LSCRIPT_ERROR_H
 #define LL_LSCRIPT_ERROR_H
 
+#include <string>
+#include <vector>
 #include "lscript_scope.h"
 
 typedef enum e_lscript_compile_pass
@@ -125,24 +127,45 @@ typedef enum e_lscript_errors
 	LSERROR_EOF
 } LSCRIPTErrors;
 
+// One compiler diagnostic (error or warning) captured during compilation.
+struct LLScriptDiagnostic
+{
+	S32         mLine;
+	S32         mColumn;
+	bool        mIsError;   // true = error, false = warning
+	std::string mText;
+};
+
 class LLScriptGenerateErrorText
 {
 public:
 	LLScriptGenerateErrorText() { init(); }
 	~LLScriptGenerateErrorText() {}
 
-	void init() { mTotalErrors = 0; mTotalWarnings = 0; }
+	void init() { mTotalErrors = 0; mTotalWarnings = 0; mDiagnostics.clear(); }
 
+	// Collect a diagnostic; does not print anything immediately.
 	void writeWarning(LLFILE *fp, LLScriptFilePosition *pos, LSCRIPTWarnings warning);
 	void writeWarning(LLFILE *fp, S32 line, S32 col, LSCRIPTWarnings warning);
 	void writeError(LLFILE *fp, LLScriptFilePosition *pos, LSCRIPTErrors error);
 	void writeError(LLFILE *fp, S32 line, S32 col, LSCRIPTErrors error);
 
-	BOOL getErrors() { return mTotalErrors; }
+	// Print all collected diagnostics to fp in the standard format:
+	//   (line, col) : ERROR : message
+	void printDiagnostics(FILE *fp) const;
+
+	// Access the collected diagnostics for custom display.
+	const std::vector<LLScriptDiagnostic>& getDiagnostics() const
+		{ return mDiagnostics; }
+
+	BOOL getErrors()   { return mTotalErrors; }
 	BOOL getWarnings() { return mTotalWarnings; }
 
 	S32 mTotalErrors;
 	S32 mTotalWarnings;
+
+private:
+	std::vector<LLScriptDiagnostic> mDiagnostics;
 };
 
 std::string getLScriptErrorString(LSCRIPTErrors error);
