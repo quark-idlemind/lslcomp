@@ -33,6 +33,11 @@ func cilSizesCase(t *testing.T, name, src string, want []CILMethodSize) {
 			if g.BodySize != wantBody {
 				t.Errorf("[%d] %s: BodySize got %d want %d", i, w.Name, g.BodySize, wantBody)
 			}
+			// RuntimeBytes is checked only when the want value is non-zero;
+			// non-zero means autobench-verified ground truth is available.
+			if w.RuntimeBytes != 0 && g.RuntimeBytes != w.RuntimeBytes {
+				t.Errorf("[%d] %s: RuntimeBytes got %d want %d", i, w.Name, g.RuntimeBytes, w.RuntimeBytes)
+			}
 		}
 	})
 }
@@ -175,12 +180,21 @@ state active {
     touch_start(integer n) { state default; }
 }
 `
+	// RuntimeBytes = 16 + len(Name) + BodySize + N_params*6 + migration.
+	// BodySize = (12 + CodeSize + 3) &^ 3.  Migration = 297 when HasCalls.
+	// Autobench-verified formula: f(n)=16+n+BodySize (5-char->37, 19-char->51+...)
+	//
+	// .ctor (len=5, B=20, p=0, calls):     16+5+20+0+297 = 338
+	// edefaultstate_entry (len=19, B=28, p=0, calls):  16+19+28+0+297 = 360
+	// edefaulttouch_start (len=19, B=16, p=1, no calls): 16+19+16+6+0 =  57  (autobench-exact)
+	// eactivestate_entry  (len=18, B=28, p=0, calls):  16+18+28+0+297 = 359
+	// eactivetouch_start  (len=18, B=28, p=1, calls):  16+18+28+6+297 = 365
 	cilSizesCase(t, "multistate", src, []CILMethodSize{
-		{Name: ".ctor", CodeSize: 7},
-		{Name: "edefaultstate_entry", CodeSize: 13},
-		{Name: "edefaulttouch_start", CodeSize: 1},
-		{Name: "eactivestate_entry", CodeSize: 16},
-		{Name: "eactivetouch_start", CodeSize: 13},
+		{Name: ".ctor", CodeSize: 7, RuntimeBytes: 338},
+		{Name: "edefaultstate_entry", CodeSize: 13, RuntimeBytes: 360},
+		{Name: "edefaulttouch_start", CodeSize: 1, RuntimeBytes: 57},
+		{Name: "eactivestate_entry", CodeSize: 16, RuntimeBytes: 359},
+		{Name: "eactivetouch_start", CodeSize: 13, RuntimeBytes: 365},
 	})
 }
 

@@ -21,7 +21,64 @@ type CILMethodSize struct {
 	// boundary.  This matches the gap between consecutive method RVAs
 	// reported by monodis.
 	BodySize int
+	// RuntimeBytes is the estimated Mono heap cost of this method in a
+	// running Second Life script, in the same units as llGetUsedMemory().
+	//
+	// Formula (all terms calibrated with autobench on 2026-05-25):
+	//
+	//   RuntimeBytes = 16                           // fixed PE metadata per method
+	//                + len(Name)                    // method name in #Strings heap
+	//                + BodySize                     // fat header + code, 4-aligned
+	//                + N_params * 6                 // PE Param table row per param
+	//                + (HasCalls ? 297 : 0)         // Linden migration base
+	//                + (HasCalls ? sum(LocalMigCost[type_i]) : 0)
+	//
+	// HasCalls is true when the method body contains any call or callvirt.
+	// Param name length does NOT add cost (only the count matters).
+	// LocalMigCost is the per-variable migration state-save overhead; see
+	// localMigrationCost table.  Note: .ctor is included but not meaningful
+	// for optimizer use since it cannot be inlined or moved.
+	RuntimeBytes int
 }
+
+// cilLocalType classifies an LSL-to-.NET local variable type for the runtime
+// cost model.
+type cilLocalType uint8
+
+const (
+	cilInteger  cilLocalType = iota // int32
+	cilFloat                        // float32
+	cilString                       // string
+	cilKey                          // valuetype LindenLab.SecondLife.Key
+	cilVector                       // class LindenLab.SecondLife.Vector
+	cilRotation                     // class LindenLab.SecondLife.Quaternion
+	cilList                         // class System.Collections.ArrayList
+	cilUnknownType                  // unrecognised; uses conservative cost
+)
+
+// localMigrationCost[t] is the extra runtime bytes added per local variable of
+// type t when the method makes any call.  It represents the Linden migration
+// checkpoint infrastructure's cost to save and restore that variable.
+// Measured with autobench 2026-05-25; uncertainties are +-4 bytes.
+var localMigrationCost = [cilUnknownType + 1]int{
+	cilInteger:     37,
+	cilFloat:       40,
+	cilString:      36,
+	cilKey:         40,
+	cilVector:      40,
+	cilRotation:    40,
+	cilList:        36,
+	cilUnknownType: 40, // conservative fallback
+}
+
+const (
+	// cilNameBase is the fixed per-method PE metadata overhead that does not
+	// depend on the method name length.  Add len(Name) separately.
+	// Calibrated: f(n) = cilNameBase + n + BodySize → f(5)=37, f(25)=57.
+	cilNameBase      = 16
+	cilMigrationBase = 297 // migration checkpoint base when any call is present
+	cilParamCost     = 6   // PE Param table row cost per explicit parameter
+)
 
 // instrSizes maps a CIL instruction mnemonic (lower-case) to its total encoded
 // byte count: opcode bytes + operand bytes.  "switch" is handled separately.
@@ -120,9 +177,9 @@ var labelRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_.]*:$`)
 // CILSizes parses a CIL assembly text (as returned by Compile) and returns the
 // computed sizes for each method body.
 //
-// CILMethodSize.CodeSize matches the "// Code size N" values reported by
-// "monodis --show-tokens".  CILMethodSize.BodySize is the number of bytes the
-// method occupies in the assembled PE image.
+// CodeSize and BodySize match monodis ground truth.  RuntimeBytes is the
+// estimated Mono heap cost in llGetUsedMemory() units; see CILMethodSize for
+// the formula and calibration notes.
 func CILSizes(cil string) ([]CILMethodSize, error) {
 	var results []CILMethodSize
 
@@ -132,6 +189,9 @@ func CILSizes(cil string) ([]CILMethodSize, error) {
 	depth := 0
 	var methodName string
 	codeSize := 0
+	nParams := 0
+	hasCalls := false
+	var locals []cilLocalType
 
 	for scanner.Scan() {
 		raw := scanner.Text()
@@ -145,9 +205,12 @@ func CILSizes(cil string) ([]CILMethodSize, error) {
 		// .method declaration: start collecting a new method.
 		if strings.HasPrefix(line, ".method ") {
 			methodName = cilMethodName(line)
+			nParams = cilCountParams(line)
 			inMethod = true
 			depth = 0
 			codeSize = 0
+			hasCalls = false
+			locals = nil
 			// Handle rare case where { appears on the same line as .method.
 			if strings.Contains(line, "{") {
 				depth++
@@ -167,12 +230,19 @@ func CILSizes(cil string) ([]CILMethodSize, error) {
 		if line == "}" {
 			depth--
 			if depth == 0 {
-				// End of method body.
 				bodySize := (12 + codeSize + 3) &^ 3
+				migration := 0
+				if hasCalls {
+					migration = cilMigrationBase
+					for _, lt := range locals {
+						migration += localMigrationCost[lt]
+					}
+				}
 				results = append(results, CILMethodSize{
-					Name:     methodName,
-					CodeSize: codeSize,
-					BodySize: bodySize,
+					Name:         methodName,
+					CodeSize:     codeSize,
+					BodySize:     bodySize,
+					RuntimeBytes: cilNameBase + len(methodName) + bodySize + nParams*cilParamCost + migration,
 				})
 				inMethod = false
 			}
@@ -184,8 +254,11 @@ func CILSizes(cil string) ([]CILMethodSize, error) {
 			continue
 		}
 
-		// Skip directives (.maxstack, .locals, .line, .custom, etc.).
+		// Directives: parse .locals init; skip everything else.
 		if strings.HasPrefix(line, ".") {
+			if strings.HasPrefix(line, ".locals ") {
+				locals = cilParseLocals(line)
+			}
 			continue
 		}
 
@@ -214,9 +287,13 @@ func CILSizes(cil string) ([]CILMethodSize, error) {
 
 		if mnemonic == "switch" {
 			n := cilSwitchTargets(line)
-			// switch opcode: 1 byte + 4-byte count + n*4-byte offsets
 			codeSize += 1 + 4 + n*4
 			continue
+		}
+
+		// Any call or callvirt triggers the migration checkpoint overhead.
+		if mnemonic == "call" || mnemonic == "callvirt" {
+			hasCalls = true
 		}
 
 		sz, ok := instrSizes[mnemonic]
@@ -233,17 +310,80 @@ func CILSizes(cil string) ([]CILMethodSize, error) {
 	return results, nil
 }
 
+// cilClassifyLocalType maps a .NET type token (from a .locals init directive,
+// lower-cased and trimmed) to a cilLocalType.
+func cilClassifyLocalType(tok string) cilLocalType {
+	t := strings.ToLower(tok)
+	switch {
+	case strings.Contains(t, "arraylist"):
+		return cilList
+	case strings.Contains(t, "quaternion"):
+		return cilRotation
+	case strings.Contains(t, "vector"):
+		return cilVector
+	case strings.Contains(t, ".key"):
+		return cilKey
+	case strings.HasPrefix(t, "string"):
+		return cilString
+	case strings.Contains(t, "float32"):
+		return cilFloat
+	case strings.Contains(t, "int32"):
+		return cilInteger
+	default:
+		return cilUnknownType
+	}
+}
+
+// cilParseLocals extracts the ordered list of local variable types from a
+// ".locals init (...)" directive line.
+func cilParseLocals(line string) []cilLocalType {
+	open := strings.Index(line, "(")
+	if open < 0 {
+		return nil
+	}
+	close := strings.LastIndex(line, ")")
+	if close <= open {
+		return nil
+	}
+	inner := strings.TrimSpace(line[open+1 : close])
+	if inner == "" {
+		return nil
+	}
+	parts := strings.Split(inner, ",")
+	out := make([]cilLocalType, 0, len(parts))
+	for _, p := range parts {
+		out = append(out, cilClassifyLocalType(strings.TrimSpace(p)))
+	}
+	return out
+}
+
+// cilCountParams returns the number of explicit parameters in a .method line
+// by counting comma-delimited items inside the (...) suffix.
+func cilCountParams(methodLine string) int {
+	open := strings.Index(methodLine, "(")
+	if open < 0 {
+		return 0
+	}
+	close := strings.LastIndex(methodLine, ")")
+	if close <= open {
+		return 0
+	}
+	inner := strings.TrimSpace(methodLine[open+1 : close])
+	if inner == "" {
+		return 0
+	}
+	return strings.Count(inner, ",") + 1
+}
+
 // cilMethodName extracts the method name from a .method declaration line.
 // Single-quoted names like 'gadd' are returned without quotes.
 func cilMethodName(line string) string {
-	// Find the first '(' -- the method name immediately precedes it.
 	paren := strings.Index(line, "(")
 	if paren < 0 {
 		return line
 	}
 	before := strings.TrimRight(line[:paren], " \t")
 
-	// Quoted name ends with '  (e.g. 'gadd' or '.ctor')
 	if strings.HasSuffix(before, "'") {
 		closeQ := len(before) - 1
 		openQ := strings.LastIndex(before[:closeQ], "'")
@@ -252,7 +392,6 @@ func cilMethodName(line string) string {
 		}
 	}
 
-	// Plain identifier: last whitespace-separated token.
 	fields := strings.Fields(before)
 	if len(fields) > 0 {
 		return fields[len(fields)-1]
