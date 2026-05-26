@@ -57,6 +57,7 @@ LSCP_TO_STACK, LSCP_LIST_BUILD_SIMPLE, LSCP_DETERMINE_HANDLERS).
 Removed 36 dead helper functions (all print_cil_*, print_return,
 print_exit_pops, get_type, is_parameter, to_class_name, setClassName,
 setBytecodeDest, etc.).  lscript_tree.cpp reduced from 9170 to 4820 lines.
+NOTE: Tasks 12-13 below restore the CIL pass to add Compile() support.
 
 ## Task 8 - Collect diagnostics; change lscript_compile return type
 DONE - LLScriptGenerateErrorText now collects diagnostics into a
@@ -90,3 +91,23 @@ parse/parse.go exposes Parse(string) error -- returns nil if clean, or an
 error with all diagnostic lines.  Makefile builds libLSLCompiler.a (ar
 from COMPILER_OBJS) which the Go package links against.  Three Go tests
 (clean, type-error, syntax-error) all pass.
+
+## Task 12 - Restore CIL code generation pass
+DONE - Restored lscript_resource.cpp/.h (needed for gTempJumpCount and
+init_temp_jumps() used by the CIL pass).  Restored full lscript_tree.cpp
+(9178 lines) containing all LSCP_EMIT_CIL_ASSEMBLY case blocks and CIL
+helper functions (print_cil_box, print_cil_type, print_cil_member, etc.).
+Modified LLScriptScript::recurse LSCP_EMIT_CIL_ASSEMBLY case to use the
+passed fp argument instead of opening mBytecodeDest, so the caller
+controls where output goes.  All 12 existing tests pass.
+
+## Task 13 - Add Compile() returning CIL assembly as a string
+DONE - Added lscript_compile_cil() to indra.l.cpp: runs PRUNE,
+SCOPE_PASS1, SCOPE_PASS2, TYPE, RESOURCE, EMIT_CIL_ASSEMBLY passes;
+captures CIL output via open_memstream(); suppresses RESOURCE debug spew
+to /dev/null.  Added lsl_compile() C-linkage shim to lsl_parse.cpp.
+Updated lsl_parse.h with lsl_compile() declaration.  Added
+Compile(input, className string) (string, error) to lslcomp.go.
+className defaults to "script" (producing class "LSL_script") when empty.
+Added 5 new Go tests: clean compile, error propagation, custom class name,
+default class name, syntax error.  All 8 Go tests pass.

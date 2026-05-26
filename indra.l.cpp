@@ -12299,6 +12299,89 @@ const char* lscript_compile(const char* src_string)
 	return gErrorToText.formatDiagnostics();
 }
 
+#include "lscript_resource.h"
+
+// lscript_compile_cil -- compile src_string to CIL (Mono/CLR) assembly text.
+//
+// On success: *cil_out is set to a malloc'd, NUL-terminated string containing
+//   the full CIL assembly text.  The caller must free(*cil_out).
+//   Returns NULL.
+//
+// On error: *cil_out is set to NULL.
+//   Returns a malloc'd diagnostic string (caller must free).
+//
+// class_name is used for the .assembly and .class names in the CIL output.
+// If NULL or empty the name "script" is used, producing class "LSL_script".
+const char* lscript_compile_cil(const char*  src_string,
+                                const char*  class_name,
+                                char**       cil_out)
+{
+	*cil_out = NULL;
+
+	BOOL        b_parse_ok    = FALSE;
+	BOOL        b_dummy       = FALSE;
+	U64         b_dummy_count = 0;
+	LSCRIPTType type          = LST_NULL;
+
+	gInternalColumn = 0;
+	gInternalLine   = 0;
+	gScriptp        = NULL;
+
+	gErrorToText.init();
+	init_supported_expressions();
+	init_temp_jumps();
+	gAllocationManager = new LLScriptAllocationManager();
+
+	yyscan_t scanner;
+	yylex_init(&scanner);
+	YY_BUFFER_STATE buf = yy_scan_string(src_string, scanner);
+	b_parse_ok = !yyparse(scanner);
+	yy_delete_buffer(buf, scanner);
+	yylex_destroy(scanner);
+
+	if (b_parse_ok)
+	{
+		gScopeStringTable = new LLStringTable(16384);
+		gScriptp->recurse(stderr, 0, 0, LSCP_PRUNE,       LSPRUNE_INVALID, b_dummy, NULL, type, type, b_dummy_count, NULL, NULL, 0, NULL, 0, NULL);
+		gScriptp->recurse(stderr, 0, 0, LSCP_SCOPE_PASS1, LSPRUNE_INVALID, b_dummy, NULL, type, type, b_dummy_count, NULL, NULL, 0, NULL, 0, NULL);
+		gScriptp->recurse(stderr, 0, 0, LSCP_SCOPE_PASS2, LSPRUNE_INVALID, b_dummy, NULL, type, type, b_dummy_count, NULL, NULL, 0, NULL, 0, NULL);
+		gScriptp->recurse(stderr, 0, 0, LSCP_TYPE,        LSPRUNE_INVALID, b_dummy, NULL, type, type, b_dummy_count, NULL, NULL, 0, NULL, 0, NULL);
+
+		if (!gErrorToText.getErrors())
+		{
+			// RESOURCE populates mScopeEntry->mSize for user-defined functions,
+			// which the CIL pass uses as the stacksize parameter.
+			// It also emits "Function Args:" / "Local List:" debug lines to fp;
+			// redirect those to /dev/null so they don't pollute stderr.
+			FILE* devnull = fopen("/dev/null", "w");
+			gScriptp->recurse(devnull ? devnull : stderr, 0, 0, LSCP_RESOURCE, LSPRUNE_INVALID, b_dummy, NULL, type, type, b_dummy_count, NULL, NULL, 0, NULL, 0, NULL);
+			if (devnull) fclose(devnull);
+
+			// Set the class name used in .assembly and .class directives.
+			const char* cname = (class_name && class_name[0]) ? class_name : "script";
+			gScriptp->setClassName(cname);
+
+			// Capture CIL output to a dynamically allocated memory buffer.
+			char*  mbuf = NULL;
+			size_t msz  = 0;
+			FILE*  mfp  = open_memstream(&mbuf, &msz);
+
+			gScriptp->recurse(mfp, 0, 0, LSCP_EMIT_CIL_ASSEMBLY, LSPRUNE_INVALID, b_dummy, NULL, type, type, b_dummy_count, NULL, NULL, 0, NULL, 0, NULL);
+
+			fclose(mfp);   // flushes buffer and NUL-terminates mbuf
+			*cil_out = mbuf;
+		}
+
+		delete gScopeStringTable;
+		gScopeStringTable = NULL;
+	}
+
+	delete gAllocationManager;
+	delete gScopeStringTable;
+
+	return gErrorToText.formatDiagnostics();
+}
+
 void _line_comment(yyscan_t scanner)
 {
 	char c;

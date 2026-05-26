@@ -1,6 +1,22 @@
-# LSL Syntax Checker
+# lslcomp
 
-This package is a fork of [github.com/Sei-Lisa/LSL-compiler](https://github.com/Sei-Lisa/LSL-compiler.git). The compiler has been stripped down to focus solely on syntax checking. Rebranded as a Go package named `lslcomp`, it exposes a `Parse` function that accepts LSL source code as input. This function returns `nil` if no compilation errors are found, or an error containing all issues uncovered by the compiler.
+Go package wrapping the Linden Lab / Sei Lisa LSL compiler.  Fork of
+[github.com/Sei-Lisa/LSL-compiler](https://github.com/Sei-Lisa/LSL-compiler.git).
+
+The package exposes two functions:
+
+```go
+// Parse syntax-checks an LSL script.  Returns nil if the script is clean,
+// or an error containing all diagnostic lines
+// ("(line, col) : ERROR : message").
+func Parse(input string) error
+
+// Compile compiles an LSL script to CIL (Mono/CLR) assembly text.
+// className is used in the .assembly and .class directives; if empty,
+// "script" is used (producing class name "LSL_script").
+// Returns (cil, nil) on success or ("", err) on compile error.
+func Compile(input, className string) (string, error)
+```
 
 ## Regenerating the committed C++ sources
 
